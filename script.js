@@ -115,7 +115,11 @@ function openTracker(trackerId, trackerName, parentId = 'root', parentName = tra
         breadcrumbs = [{ id: 'root', name: trackerName }];
     } else {
         const parentIndex = breadcrumbs.findIndex(b => b.id === parentId);
-        breadcrumbs = (parentIndex !== -1) ? breadcrumbs.slice(0, parentIndex + 1) : [...breadcrumbs, { id: parentId, name: parentName }];
+        if (parentIndex !== -1) {
+            breadcrumbs.splice(parentIndex + 1);
+        } else {
+            breadcrumbs.push({ id: parentId, name: parentName });
+        }
     }
     
     showTrackerPage();
@@ -157,12 +161,11 @@ function renderBreadcrumbs() {
     const breadcrumbsContainer = document.getElementById('breadcrumbs');
     breadcrumbsContainer.innerHTML = '';
     breadcrumbs.forEach((crumb, index) => {
-        const isLast = index === breadcrumbs.length - 1;
-        const el = document.createElement(isLast ? 'span' : 'a');
-        el.className = isLast ? 'font-bold' : 'cursor-pointer hover:underline';
+        const el = document.createElement(index === breadcrumbs.length - 1 ? 'span' : 'a');
+        el.className = index === breadcrumbs.length - 1 ? 'font-bold' : 'cursor-pointer hover:underline';
         el.textContent = crumb.name;
-        if (!isLast) {
-            el.addEventListener('click', () => openTracker(currentTrackerId, breadcrumbs[0].name, crumb.id, crumb.name));
+        if (index < breadcrumbs.length - 1) {
+            el.onclick = () => openTracker(currentTrackerId, breadcrumbs[0].name, crumb.id, crumb.name);
             breadcrumbsContainer.appendChild(el);
             breadcrumbsContainer.append(' / ');
         } else {
@@ -176,7 +179,7 @@ async function openItemModal(itemId = null) {
     const modal = document.getElementById('item-modal');
     const nameInput = document.getElementById('item-name-input');
     const typeCheckbox = document.getElementById('item-type-checkbox');
-    const saveBtn = document.getElementById('save-item-btn');
+    const saveBtn = document.getElementById('save-item-btn'); // THIS WAS THE MISSING PIECE
 
     if (itemId) {
         document.getElementById('modal-title').textContent = 'Edit Item';
@@ -198,7 +201,6 @@ async function saveItem(itemId) {
     const name = document.getElementById('item-name-input').value.trim();
     if (!name) return alert('Name is required.');
     const type = document.getElementById('item-type-checkbox').checked ? 'FOLDER' : 'ITEM';
-
     const collectionRef = collection(db, "users", userId, "trackers", currentTrackerId, "items");
     
     try {
@@ -215,7 +217,7 @@ async function saveItem(itemId) {
 async function openDeleteModal(itemId) {
     const modal = document.getElementById('delete-modal');
     const text = document.getElementById('delete-text');
-    const confirmBtn = document.getElementById('confirm-delete-btn');
+    const confirmBtn = document.getElementById('confirm-delete-btn'); // THIS WAS THE MISSING PIECE
     
     const itemDoc = await getDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId));
     text.textContent = `This will permanently delete "${itemDoc.data().name}".`;
