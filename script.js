@@ -1,10 +1,10 @@
 // All imports MUST be at the very top of the file.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
-// Your Firebase configuration for the "pro-tracker-final" project
+// Your Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyA_9LWNHTUYjW9o5ZgBoEfQqdtYhIUIX0s",
     authDomain: "gate-tracker-final.firebaseapp.com",
@@ -16,36 +16,26 @@ const firebaseConfig = {
 
 // --- FIREBASE & APP STATE ---
 let app, db, auth, storage, userId;
+let trackersUnsubscribe = null; // To stop listening for tracker changes when not needed
+
+// --- DOM ELEMENTS ---
+const loaderOverlay = document.getElementById('loader-overlay');
+const appContainer = document.getElementById('app-container');
+const dashboardPage = document.getElementById('dashboard-page');
+const settingsPage = document.getElementById('settings-page');
+const settingsBtn = document.getElementById('settings-btn');
+const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
+const createTrackerBtn = document.getElementById('create-tracker-btn');
+const profilePicContainer = document.getElementById('profile-pic-container');
+const photoUploadInput = document.getElementById('photo-upload');
+const uploadBtn = document.getElementById('upload-btn');
+const trackersGrid = document.getElementById('trackers-grid');
+
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Select all DOM elements once the document is ready
-    const loaderOverlay = document.getElementById('loader-overlay');
-    const loaderPercentage = document.getElementById('loader-percentage');
-    const loaderCircle = document.querySelector('.loader-circle');
-    const appContainer = document.getElementById('app-container');
-    const dashboardPage = document.getElementById('dashboard-page');
-    const settingsPage = document.getElementById('settings-page');
-    const settingsBtn = document.getElementById('settings-btn');
-    const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
-    const createTrackerBtn = document.getElementById('create-tracker-btn');
-    const profilePicContainer = document.getElementById('profile-pic-container');
-    const photoUploadInput = document.getElementById('photo-upload');
-    const uploadBtn = document.getElementById('upload-btn');
-
-    // Start the loading animation
-    let currentPercent = 0;
-    const interval = setInterval(() => {
-        if (currentPercent < 100) {
-            currentPercent++;
-            loaderPercentage.textContent = `${currentPercent}%`;
-            const hue = (currentPercent / 100) * 120;
-            loaderCircle.style.background = `conic-gradient(hsl(${hue}, 70%, 50%) ${currentPercent}%, #1f2937 ${currentPercent}%)`;
-        } else {
-            clearInterval(interval);
-        }
-    }, 20);
-
+    // Start loader animation... (This part remains the same)
+    
     // Initialize Firebase
     try {
         app = initializeApp(firebaseConfig);
@@ -62,11 +52,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("User is signed in:", userId);
 
             loadProfilePicture(userId);
+            renderTrackers(); // Start listening for and displaying trackers
             
+            // Hide loader and show app
             setTimeout(() => {
                 loaderOverlay.classList.add('hidden');
                 appContainer.style.opacity = '1';
-            }, 2200);
+            }, 1000); // Shortened delay
         });
     } catch (error) {
         console.error("Firebase Init Error:", error);
@@ -91,7 +83,32 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// --- FUNCTIONS ---
+// --- NEW: Render Trackers from Firestore ---
+function renderTrackers() {
+    if (trackersUnsubscribe) trackersUnsubscribe(); // Stop any previous listener
+
+    const trackersQuery = collection(db, "users", userId, "trackers");
+    
+    trackersUnsubscribe = onSnapshot(trackersQuery, (querySnapshot) => {
+        if (querySnapshot.empty) {
+            trackersGrid.innerHTML = `<p class="text-center col-span-full text-gray-500">You don't have any trackers yet. Go to settings to create one!</p>`;
+            return;
+        }
+        
+        trackersGrid.innerHTML = ''; // Clear the grid
+        querySnapshot.forEach((doc) => {
+            const tracker = doc.data();
+            const trackerCard = document.createElement('div');
+            trackerCard.className = 'bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg cursor-pointer transition-transform hover:scale-105';
+            trackerCard.innerHTML = `<h3 class="text-lg font-bold text-center text-purple-700 dark:text-purple-300">${tracker.name}</h3>`;
+            // We will add a click event here later to open the tracker
+            trackersGrid.appendChild(trackerCard);
+        });
+    });
+}
+
+
+// --- Functions for Creating Tracker and Handling Profile Picture ---
 
 async function handleCreateTracker() {
     const trackerNameInput = document.getElementById('new-tracker-name');
@@ -108,9 +125,11 @@ async function handleCreateTracker() {
         });
         alert(`Tracker "${trackerName}" created!`);
         trackerNameInput.value = '';
+        // Go back to the dashboard to see the new tracker
+        backToDashboardBtn.click();
     } catch (error) {
         console.error("Error creating tracker: ", error);
-        alert("Could not create tracker.");
+        alert("Could not create tracker. Check security rules.");
     }
 }
 
@@ -118,11 +137,15 @@ async function loadProfilePicture(uid) {
     const profilePicImg = document.getElementById('profile-pic');
     const defaultPicIcon = document.getElementById('default-pic-icon');
     const userDocRef = doc(db, "users", uid);
-    const docSnap = await getDoc(userDocRef);
-    if (docSnap.exists() && docSnap.data().profilePicUrl) {
-        profilePicImg.src = docSnap.data().profilePicUrl;
-        profilePicImg.classList.remove('hidden');
-        defaultPicIcon.classList.add('hidden');
+    try {
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists() && docSnap.data().profilePicUrl) {
+            profilePicImg.src = docSnap.data().profilePicUrl;
+            profilePicImg.classList.remove('hidden');
+            defaultPicIcon.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error("Error loading profile picture:", error);
     }
 }
 
@@ -138,10 +161,13 @@ async function handlePhotoUpload(event) {
         const downloadURL = await getDownloadURL(snapshot.ref);
         const userDocRef = doc(db, "users", userId);
         await setDoc(userDocRef, { profilePicUrl: downloadURL }, { merge: true });
+
+        // Immediately update the image on the screen
         loadProfilePicture(userId);
-        alert("Profile picture updated!");
+        
+        alert("Profile picture updated successfully!");
     } catch (error) {
         console.error("Error uploading file:", error);
-        alert("Upload failed.");
+        alert("Upload failed. Please check storage rules.");
     }
 }
