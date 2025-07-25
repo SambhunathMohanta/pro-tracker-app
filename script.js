@@ -20,19 +20,8 @@ let trackersUnsubscribe = null, itemsUnsubscribe = null;
 let currentTrackerId = null, currentParentId = 'root';
 let breadcrumbs = [];
 
-// --- DOM ELEMENTS ---
-const loaderOverlay = document.getElementById('loader-overlay');
-const appContainer = document.getElementById('app-container');
-const dashboardPage = document.getElementById('dashboard-page');
-const settingsPage = document.getElementById('settings-page');
-const trackerPage = document.getElementById('tracker-page');
-
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    initializeAppLogic();
-});
-
-function initializeAppLogic() {
     // Start loader animation
     const loaderPercentage = document.getElementById('loader-percentage');
     const loaderCircle = document.querySelector('.loader-circle');
@@ -58,15 +47,15 @@ function initializeAppLogic() {
             userId = user.uid;
             loadProfilePicture(userId);
             renderTrackers();
-            attachEventListeners(); // Attach listeners after user is authenticated
+            attachEventListeners();
             
             setTimeout(() => {
-                loaderOverlay.classList.add('hidden');
-                appContainer.style.opacity = '1';
+                document.getElementById('loader-overlay').classList.add('hidden');
+                document.getElementById('app-container').style.opacity = '1';
             }, 2200);
         });
     } catch (error) { console.error("Firebase Init Error:", error); }
-}
+});
 
 // --- EVENT LISTENERS ---
 function attachEventListeners() {
@@ -84,20 +73,20 @@ function attachEventListeners() {
 
 // --- PAGE NAVIGATION ---
 function showDashboardPage() {
-    dashboardPage.classList.remove('hidden');
-    settingsPage.classList.add('hidden');
-    trackerPage.classList.add('hidden');
+    document.getElementById('dashboard-page').classList.remove('hidden');
+    document.getElementById('settings-page').classList.add('hidden');
+    document.getElementById('tracker-page').classList.add('hidden');
     if (itemsUnsubscribe) itemsUnsubscribe();
 }
 function showSettingsPage() {
-    dashboardPage.classList.add('hidden');
-    settingsPage.classList.remove('hidden');
-    trackerPage.classList.add('hidden');
+    document.getElementById('dashboard-page').classList.add('hidden');
+    document.getElementById('settings-page').classList.remove('hidden');
+    document.getElementById('tracker-page').classList.add('hidden');
 }
 function showTrackerPage() {
-    dashboardPage.classList.add('hidden');
-    settingsPage.classList.add('hidden');
-    trackerPage.classList.remove('hidden');
+    document.getElementById('dashboard-page').classList.add('hidden');
+    document.getElementById('settings-page').classList.add('hidden');
+    document.getElementById('tracker-page').classList.remove('hidden');
 }
 
 // --- RENDER FUNCTIONS ---
@@ -126,10 +115,7 @@ function openTracker(trackerId, trackerName, parentId = 'root', parentName = tra
         breadcrumbs = [{ id: 'root', name: trackerName }];
     } else {
         const parentIndex = breadcrumbs.findIndex(b => b.id === parentId);
-        if (parentIndex !== -1) {
-            breadcrumbs = breadcrumbs.slice(0, parentIndex + 1);
-        }
-        breadcrumbs.push({ id: parentId, name: parentName });
+        breadcrumbs = (parentIndex !== -1) ? breadcrumbs.slice(0, parentIndex + 1) : [...breadcrumbs, { id: parentId, name: parentName }];
     }
     
     showTrackerPage();
@@ -145,12 +131,12 @@ function openTracker(trackerId, trackerName, parentId = 'root', parentName = tra
         snapshot.forEach(doc => {
             const item = doc.data();
             const el = document.createElement('div');
-            el.className = 'bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex items-center space-x-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700';
+            el.className = 'bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex items-center space-x-4';
             el.innerHTML = `
                 <span class="text-2xl">${item.type === 'FOLDER' ? '📁' : '📄'}</span>
                 <span class="font-semibold flex-grow">${item.name}</span>
-                <button data-id="${doc.id}" class="edit-item-btn p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">✏️</button>
-                <button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">🗑️</button>
+                <button data-id="${doc.id}" class="edit-item-btn p-1 rounded-full text-xs hover:bg-gray-200 dark:hover:bg-gray-600">✏️</button>
+                <button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full text-xs hover:bg-gray-200 dark:hover:bg-gray-600">🗑️</button>
             `;
             if (item.type === 'FOLDER') {
                 el.addEventListener('click', (e) => {
@@ -161,8 +147,8 @@ function openTracker(trackerId, trackerName, parentId = 'root', parentName = tra
             itemsContainer.appendChild(el);
         });
         
-        document.querySelectorAll('.edit-item-btn').forEach(btn => btn.addEventListener('click', () => openItemModal(btn.dataset.id)));
-        document.querySelectorAll('.delete-item-btn').forEach(btn => btn.addEventListener('click', () => openDeleteModal(btn.dataset.id)));
+        document.querySelectorAll('.edit-item-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openItemModal(btn.dataset.id); }));
+        document.querySelectorAll('.delete-item-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openDeleteModal(btn.dataset.id); }));
     });
 }
 
@@ -177,10 +163,7 @@ function renderBreadcrumbs() {
         if (!isLast) {
             el.addEventListener('click', () => openTracker(currentTrackerId, breadcrumbs[0].name, crumb.id, crumb.name));
             breadcrumbsContainer.appendChild(el);
-            const separator = document.createElement('span');
-            separator.className = 'mx-2';
-            separator.textContent = '>';
-            breadcrumbsContainer.appendChild(separator);
+            breadcrumbsContainer.append(' > ');
         } else {
             breadcrumbsContainer.appendChild(el);
         }
@@ -190,19 +173,18 @@ function renderBreadcrumbs() {
 // --- MODAL & DATA HANDLING ---
 async function openItemModal(itemId = null) {
     const modal = document.getElementById('item-modal');
-    const title = document.getElementById('modal-title');
     const nameInput = document.getElementById('item-name-input');
     const typeCheckbox = document.getElementById('item-type-checkbox');
     const saveBtn = document.getElementById('save-item-btn');
 
     if (itemId) {
-        title.textContent = 'Edit Item';
+        document.getElementById('modal-title').textContent = 'Edit Item';
         const itemDoc = await getDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId));
         const item = itemDoc.data();
         nameInput.value = item.name;
         typeCheckbox.checked = item.type === 'FOLDER';
     } else {
-        title.textContent = 'Create New Item';
+        document.getElementById('modal-title').textContent = 'Create New Item';
         nameInput.value = '';
         typeCheckbox.checked = false;
     }
@@ -216,19 +198,13 @@ async function saveItem(itemId) {
     if (!name) return alert('Name is required.');
     const type = document.getElementById('item-type-checkbox').checked ? 'FOLDER' : 'ITEM';
 
-    const data = {
-        name,
-        type,
-        parentId: currentParentId,
-        createdAt: serverTimestamp()
-    };
-    
     const collectionRef = collection(db, "users", userId, "trackers", currentTrackerId, "items");
     
     try {
         if (itemId) {
             await updateDoc(doc(collectionRef, itemId), { name, type });
         } else {
+            const data = { name, type, parentId: currentParentId, createdAt: serverTimestamp(), tasks: {} };
             await addDoc(collectionRef, data);
         }
         document.getElementById('item-modal').classList.add('hidden');
@@ -254,7 +230,7 @@ async function deleteItem(itemId) {
     } catch (error) { console.error("Error deleting item:", error); }
 }
 
-// --- PROFILE & TRACKER CREATION (No changes) ---
+// --- PROFILE & TRACKER CREATION ---
 async function handleCreateTracker() {
     const name = document.getElementById('new-tracker-name').value.trim();
     if (!name) return alert("Please enter a name.");
