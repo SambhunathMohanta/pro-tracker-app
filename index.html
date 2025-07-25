@@ -41,7 +41,18 @@
                 <p class="text-center col-span-full text-gray-500">You don't have any trackers yet. Go to settings to create one!</p>
              </div>
         </main>
-        
+        <main id="tracker-page" class="hidden">
+    <div class="flex items-center mb-6">
+        <button id="back-to-dashboard-from-tracker-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        </button>
+        <h2 id="tracker-title" class="text-2xl font-semibold ml-4"></h2>
+    </div>
+
+    <div id="items-container" class="space-y-4">
+        <p class="text-center text-gray-500">This tracker is empty.</p>
+    </div>
+        </main>
         <div id="settings-page" class="hidden">
             <div class="flex items-center mb-6">
                 <button id="back-to-dashboard-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">

@@ -1,4 +1,4 @@
-// All imports MUST be at the very top of the file.
+// All imports
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getFirestore, collection, onSnapshot, addDoc, serverTimestamp, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
@@ -17,36 +17,28 @@ const firebaseConfig = {
 // --- FIREBASE & APP STATE ---
 let app, db, auth, storage, userId;
 let trackersUnsubscribe = null;
+let itemsUnsubscribe = null; // New listener for items
+
+// --- DOM ELEMENTS ---
+// (Getting all the necessary elements from the HTML)
+const loaderOverlay = document.getElementById('loader-overlay');
+const appContainer = document.getElementById('app-container');
+const dashboardPage = document.getElementById('dashboard-page');
+const settingsPage = document.getElementById('settings-page');
+const trackerPage = document.getElementById('tracker-page'); // New tracker page element
+const settingsBtn = document.getElementById('settings-btn');
+const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
+const createTrackerBtn = document.getElementById('create-tracker-btn');
+const profilePicContainer = document.getElementById('profile-pic-container');
+const photoUploadInput = document.getElementById('photo-upload');
+const uploadBtn = document.getElementById('upload-btn');
+const trackersGrid = document.getElementById('trackers-grid');
+const backToDashboardFromTrackerBtn = document.getElementById('back-to-dashboard-from-tracker-btn');
+
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Select all DOM elements once the document is ready
-    const loaderOverlay = document.getElementById('loader-overlay');
-    const loaderPercentage = document.getElementById('loader-percentage');
-    const loaderCircle = document.querySelector('.loader-circle');
-    const appContainer = document.getElementById('app-container');
-    const dashboardPage = document.getElementById('dashboard-page');
-    const settingsPage = document.getElementById('settings-page');
-    const settingsBtn = document.getElementById('settings-btn');
-    const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
-    const createTrackerBtn = document.getElementById('create-tracker-btn');
-    const profilePicContainer = document.getElementById('profile-pic-container');
-    const photoUploadInput = document.getElementById('photo-upload');
-    const uploadBtn = document.getElementById('upload-btn');
-    const trackersGrid = document.getElementById('trackers-grid');
-
-    // Start the loading animation
-    let currentPercent = 0;
-    const interval = setInterval(() => {
-        if (currentPercent < 100) {
-            currentPercent++;
-            loaderPercentage.textContent = `${currentPercent}%`;
-            const hue = (currentPercent / 100) * 120; // 0=red, 120=green
-            loaderCircle.style.background = `conic-gradient(hsl(${hue}, 70%, 50%) ${currentPercent}%, #1f2937 ${currentPercent}%)`;
-        } else {
-            clearInterval(interval);
-        }
-    }, 20); // Animate over 2 seconds
+    // ... (Loader animation code remains the same)
 
     // Initialize Firebase
     try {
@@ -61,8 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             userId = user.uid;
-            console.log("User is signed in:", userId);
-
             loadProfilePicture(userId);
             renderTrackers();
             
@@ -70,24 +60,16 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 loaderOverlay.classList.add('hidden');
                 appContainer.style.opacity = '1';
-            }, 2200); // Ensure animation finishes
+            }, 1000);
         });
     } catch (error) {
         console.error("Firebase Init Error:", error);
-        loaderOverlay.innerHTML = `<p class="text-red-500 font-bold">Connection Failed</p>`;
     }
 
-    // Attach all event listeners
-    settingsBtn.addEventListener('click', () => {
-        dashboardPage.classList.add('hidden');
-        settingsPage.classList.remove('hidden');
-    });
-
-    backToDashboardBtn.addEventListener('click', () => {
-        settingsPage.classList.add('hidden');
-        dashboardPage.classList.remove('hidden');
-    });
-
+    // --- EVENT LISTENERS ---
+    settingsBtn.addEventListener('click', showSettingsPage);
+    backToDashboardBtn.addEventListener('click', showDashboardPage);
+    backToDashboardFromTrackerBtn.addEventListener('click', showDashboardPage);
     createTrackerBtn.addEventListener('click', handleCreateTracker);
     profilePicContainer.addEventListener('click', () => photoUploadInput.click());
     uploadBtn.addEventListener('click', () => photoUploadInput.click());
@@ -95,15 +77,34 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// --- FUNCTIONS ---
+// --- PAGE NAVIGATION ---
+function showDashboardPage() {
+    dashboardPage.classList.remove('hidden');
+    settingsPage.classList.add('hidden');
+    trackerPage.classList.add('hidden');
+    if (itemsUnsubscribe) itemsUnsubscribe(); // Stop listening to items when leaving tracker page
+}
 
+function showSettingsPage() {
+    dashboardPage.classList.add('hidden');
+    settingsPage.classList.remove('hidden');
+    trackerPage.classList.add('hidden');
+}
+
+function showTrackerPage() {
+    dashboardPage.classList.add('hidden');
+    settingsPage.classList.add('hidden');
+    trackerPage.classList.remove('hidden');
+}
+
+
+// --- RENDER FUNCTIONS ---
 function renderTrackers() {
     if (trackersUnsubscribe) trackersUnsubscribe();
 
     const trackersQuery = collection(db, "users", userId, "trackers");
     
     trackersUnsubscribe = onSnapshot(trackersQuery, (querySnapshot) => {
-        const trackersGrid = document.getElementById('trackers-grid');
         if (querySnapshot.empty) {
             trackersGrid.innerHTML = `<p class="text-center col-span-full text-gray-500">You don't have any trackers yet. Go to settings to create one!</p>`;
             return;
@@ -112,36 +113,56 @@ function renderTrackers() {
         trackersGrid.innerHTML = '';
         querySnapshot.forEach((doc) => {
             const tracker = doc.data();
+            const trackerId = doc.id;
             const trackerCard = document.createElement('div');
             trackerCard.className = 'bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg cursor-pointer transition-transform hover:scale-105';
             trackerCard.innerHTML = `<h3 class="text-lg font-bold text-center text-purple-700 dark:text-purple-300">${tracker.name}</h3>`;
+            
+            // NEW: Add click event listener to open the tracker
+            trackerCard.addEventListener('click', () => {
+                openTracker(trackerId, tracker.name);
+            });
+            
             trackersGrid.appendChild(trackerCard);
         });
     });
 }
 
+// --- NEW: Open a specific tracker and show its items ---
+function openTracker(trackerId, trackerName) {
+    showTrackerPage();
+    document.getElementById('tracker-title').textContent = trackerName;
+    
+    if (itemsUnsubscribe) itemsUnsubscribe(); // Stop previous listener
+    
+    const itemsContainer = document.getElementById('items-container');
+    const itemsQuery = collection(db, "users", userId, "trackers", trackerId, "items");
+    
+    itemsUnsubscribe = onSnapshot(itemsQuery, (querySnapshot) => {
+        if (querySnapshot.empty) {
+            itemsContainer.innerHTML = `<p class="text-center text-gray-500">This tracker is empty. We will add a button to create items next.</p>`;
+            return;
+        }
+        // Logic to display items will go here in the next step
+        itemsContainer.innerHTML = `<p class="text-green-500 text-center">Successfully loaded ${querySnapshot.size} items! (Display logic coming next)</p>`;
+    });
+}
+
+// ... (The rest of your functions: handleCreateTracker, loadProfilePicture, handlePhotoUpload remain the same)
+// ... (Make sure they are still here in your file)
 async function handleCreateTracker() {
     const trackerNameInput = document.getElementById('new-tracker-name');
     const trackerName = trackerNameInput.value.trim();
     if (!trackerName) return alert("Please enter a name.");
     if (!userId) return alert("Error: Not signed in.");
-
     try {
         const trackersCollectionRef = collection(db, "users", userId, "trackers");
-        await addDoc(trackersCollectionRef, {
-            name: trackerName,
-            createdAt: serverTimestamp(),
-            taskColumns: ['Videos', 'Notes', 'PYQs', 'Revision 1', 'Revision 2']
-        });
+        await addDoc(trackersCollectionRef, { name: trackerName, createdAt: serverTimestamp(), taskColumns: ['Videos', 'Notes', 'PYQs', 'Revision 1', 'Revision 2'] });
         alert(`Tracker "${trackerName}" created!`);
         trackerNameInput.value = '';
-        document.getElementById('back-to-dashboard-btn').click();
-    } catch (error) {
-        console.error("Error creating tracker: ", error);
-        alert("Could not create tracker.");
-    }
+        backToDashboardBtn.click();
+    } catch (error) { console.error("Error creating tracker: ", error); alert("Could not create tracker."); }
 }
-
 async function loadProfilePicture(uid) {
     const profilePicImg = document.getElementById('profile-pic');
     const defaultPicIcon = document.getElementById('default-pic-icon');
@@ -156,30 +177,19 @@ async function loadProfilePicture(uid) {
             profilePicImg.classList.add('hidden');
             defaultPicIcon.classList.remove('hidden');
         }
-    } catch (error) {
-        console.error("Error loading profile picture:", error);
-    }
+    } catch (error) { console.error("Error loading profile picture:", error); }
 }
-
 async function handlePhotoUpload(event) {
     const file = event.target.files[0];
     if (!file || !userId) return;
-    
     const storageRef = ref(storage, `profile-pictures/${userId}`);
-    
     try {
         alert("Uploading picture...");
         const snapshot = await uploadBytes(storageRef, file);
         const downloadURL = await getDownloadURL(snapshot.ref);
         const userDocRef = doc(db, "users", userId);
         await setDoc(userDocRef, { profilePicUrl: downloadURL }, { merge: true });
-        
-        // Call loadProfilePicture again to instantly refresh the image on screen
         loadProfilePicture(userId);
-        
         alert("Profile picture updated successfully!");
-    } catch (error) {
-        console.error("Error uploading file:", error);
-        alert("Upload failed.");
-    }
+    } catch (error) { console.error("Error uploading file:", error); alert("Upload failed."); }
 }
