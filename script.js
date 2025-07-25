@@ -1,7 +1,8 @@
 // All imports MUST be at the very top of the file.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
 // Your Firebase configuration for the "gate-tracker-final" project
 const firebaseConfig = {
@@ -27,6 +28,11 @@ const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
 
 // --- APPLICATION INITIALIZATION ---
 async function initializeAppLogic() {
+    const loaderOverlay = document.getElementById('loader-overlay');
+    const loaderPercentage = document.getElementById('loader-percentage');
+    const loaderCircle = document.querySelector('.loader-circle');
+    const appContainer = document.getElementById('app-container');
+
     // 1. Start the loading animation
     let currentPercent = 0;
     const interval = setInterval(() => {
@@ -44,15 +50,19 @@ async function initializeAppLogic() {
     // 2. Connect to Firebase
     try {
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        storage = getStorage(app); // This is a new line to add
 
         onAuthStateChanged(auth, user => {
             if (!user) {
                 signInAnonymously(auth).catch(err => console.error(err));
                 return;
             }
-            console.log("User is signed in:", user.uid);
+            userId = user.uid;
+            console.log("User is signed in:", userId);
+
+            loadProfilePicture(userId); // This is a new line to add
             
             // 3. Hide loader and show the app
             setTimeout(() => {
@@ -79,3 +89,66 @@ backToDashboardBtn.addEventListener('click', () => {
 
 // --- START THE APP ---
 document.addEventListener('DOMContentLoaded', initializeAppLogic);
+// --- PROFILE PICTURE LOGIC ---
+const profilePicImg = document.getElementById('profile-pic');
+const defaultPicIcon = document.getElementById('default-pic-icon');
+const profilePicContainer = document.getElementById('profile-pic-container');
+const photoUploadInput = document.getElementById('photo-upload');
+const uploadBtn = document.getElementById('upload-btn');
+
+let storage; // Will be initialized with other Firebase services
+
+// Function to load the user's profile picture
+async function loadProfilePicture(uid) {
+    const userDocRef = doc(db, "users", uid);
+    const docSnap = await getDoc(userDocRef);
+
+    if (docSnap.exists() && docSnap.data().profilePicUrl) {
+        profilePicImg.src = docSnap.data().profilePicUrl;
+        profilePicImg.classList.remove('hidden');
+        defaultPicIcon.classList.add('hidden');
+    }
+}
+
+// Function to handle file selection and upload
+async function handlePhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!userId) {
+        alert("You must be signed in to upload a picture.");
+        return;
+    }
+    
+    // Create a storage reference
+    const storageRef = ref(storage, `profile-pictures/${userId}`);
+    
+    try {
+        // Upload the file
+        alert("Uploading picture...");
+        const snapshot = await uploadBytes(storageRef, file);
+        
+        // Get the download URL
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        
+        // Save the URL to the user's profile in Firestore
+        const userDocRef = doc(db, "users", userId);
+        await setDoc(userDocRef, { profilePicUrl: downloadURL }, { merge: true });
+
+        // Display the new picture
+        profilePicImg.src = downloadURL;
+        profilePicImg.classList.remove('hidden');
+        defaultPicIcon.classList.add('hidden');
+        
+        alert("Profile picture updated successfully!");
+
+    } catch (error) {
+        console.error("Error uploading file:", error);
+        alert("Upload failed. Please try again.");
+    }
+}
+
+// Event listeners for the upload buttons
+profilePicContainer.addEventListener('click', () => photoUploadInput.click());
+uploadBtn.addEventListener('click', () => photoUploadInput.click());
+photoUploadInput.addEventListener('change', handlePhotoUpload);
