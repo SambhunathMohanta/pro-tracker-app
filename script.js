@@ -16,26 +16,38 @@ const firebaseConfig = {
 
 // --- FIREBASE & APP STATE ---
 let app, db, auth, storage, userId;
-let trackersUnsubscribe = null; // To stop listening for tracker changes when not needed
-
-// --- DOM ELEMENTS ---
-const loaderOverlay = document.getElementById('loader-overlay');
-const appContainer = document.getElementById('app-container');
-const dashboardPage = document.getElementById('dashboard-page');
-const settingsPage = document.getElementById('settings-page');
-const settingsBtn = document.getElementById('settings-btn');
-const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
-const createTrackerBtn = document.getElementById('create-tracker-btn');
-const profilePicContainer = document.getElementById('profile-pic-container');
-const photoUploadInput = document.getElementById('photo-upload');
-const uploadBtn = document.getElementById('upload-btn');
-const trackersGrid = document.getElementById('trackers-grid');
-
+let trackersUnsubscribe = null;
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Start loader animation... (This part remains the same)
-    
+    // Select all DOM elements once the document is ready
+    const loaderOverlay = document.getElementById('loader-overlay');
+    const loaderPercentage = document.getElementById('loader-percentage');
+    const loaderCircle = document.querySelector('.loader-circle');
+    const appContainer = document.getElementById('app-container');
+    const dashboardPage = document.getElementById('dashboard-page');
+    const settingsPage = document.getElementById('settings-page');
+    const settingsBtn = document.getElementById('settings-btn');
+    const backToDashboardBtn = document.getElementById('back-to-dashboard-btn');
+    const createTrackerBtn = document.getElementById('create-tracker-btn');
+    const profilePicContainer = document.getElementById('profile-pic-container');
+    const photoUploadInput = document.getElementById('photo-upload');
+    const uploadBtn = document.getElementById('upload-btn');
+    const trackersGrid = document.getElementById('trackers-grid');
+
+    // Start the loading animation
+    let currentPercent = 0;
+    const interval = setInterval(() => {
+        if (currentPercent < 100) {
+            currentPercent++;
+            loaderPercentage.textContent = `${currentPercent}%`;
+            const hue = (currentPercent / 100) * 120; // 0=red, 120=green
+            loaderCircle.style.background = `conic-gradient(hsl(${hue}, 70%, 50%) ${currentPercent}%, #1f2937 ${currentPercent}%)`;
+        } else {
+            clearInterval(interval);
+        }
+    }, 20); // Animate over 2 seconds
+
     // Initialize Firebase
     try {
         app = initializeApp(firebaseConfig);
@@ -52,13 +64,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("User is signed in:", userId);
 
             loadProfilePicture(userId);
-            renderTrackers(); // Start listening for and displaying trackers
+            renderTrackers();
             
             // Hide loader and show app
             setTimeout(() => {
                 loaderOverlay.classList.add('hidden');
                 appContainer.style.opacity = '1';
-            }, 1000); // Shortened delay
+            }, 2200); // Ensure animation finishes
         });
     } catch (error) {
         console.error("Firebase Init Error:", error);
@@ -83,32 +95,30 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// --- NEW: Render Trackers from Firestore ---
+// --- FUNCTIONS ---
+
 function renderTrackers() {
-    if (trackersUnsubscribe) trackersUnsubscribe(); // Stop any previous listener
+    if (trackersUnsubscribe) trackersUnsubscribe();
 
     const trackersQuery = collection(db, "users", userId, "trackers");
     
     trackersUnsubscribe = onSnapshot(trackersQuery, (querySnapshot) => {
+        const trackersGrid = document.getElementById('trackers-grid');
         if (querySnapshot.empty) {
             trackersGrid.innerHTML = `<p class="text-center col-span-full text-gray-500">You don't have any trackers yet. Go to settings to create one!</p>`;
             return;
         }
         
-        trackersGrid.innerHTML = ''; // Clear the grid
+        trackersGrid.innerHTML = '';
         querySnapshot.forEach((doc) => {
             const tracker = doc.data();
             const trackerCard = document.createElement('div');
             trackerCard.className = 'bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg cursor-pointer transition-transform hover:scale-105';
             trackerCard.innerHTML = `<h3 class="text-lg font-bold text-center text-purple-700 dark:text-purple-300">${tracker.name}</h3>`;
-            // We will add a click event here later to open the tracker
             trackersGrid.appendChild(trackerCard);
         });
     });
 }
-
-
-// --- Functions for Creating Tracker and Handling Profile Picture ---
 
 async function handleCreateTracker() {
     const trackerNameInput = document.getElementById('new-tracker-name');
@@ -121,15 +131,14 @@ async function handleCreateTracker() {
         await addDoc(trackersCollectionRef, {
             name: trackerName,
             createdAt: serverTimestamp(),
-            taskColumns: ['Task 1', 'Task 2', 'Task 3', 'Revision 1', 'Revision 2']
+            taskColumns: ['Videos', 'Notes', 'PYQs', 'Revision 1', 'Revision 2']
         });
         alert(`Tracker "${trackerName}" created!`);
         trackerNameInput.value = '';
-        // Go back to the dashboard to see the new tracker
-        backToDashboardBtn.click();
+        document.getElementById('back-to-dashboard-btn').click();
     } catch (error) {
         console.error("Error creating tracker: ", error);
-        alert("Could not create tracker. Check security rules.");
+        alert("Could not create tracker.");
     }
 }
 
@@ -143,6 +152,9 @@ async function loadProfilePicture(uid) {
             profilePicImg.src = docSnap.data().profilePicUrl;
             profilePicImg.classList.remove('hidden');
             defaultPicIcon.classList.add('hidden');
+        } else {
+            profilePicImg.classList.add('hidden');
+            defaultPicIcon.classList.remove('hidden');
         }
     } catch (error) {
         console.error("Error loading profile picture:", error);
@@ -161,13 +173,13 @@ async function handlePhotoUpload(event) {
         const downloadURL = await getDownloadURL(snapshot.ref);
         const userDocRef = doc(db, "users", userId);
         await setDoc(userDocRef, { profilePicUrl: downloadURL }, { merge: true });
-
-        // Immediately update the image on the screen
+        
+        // Call loadProfilePicture again to instantly refresh the image on screen
         loadProfilePicture(userId);
         
         alert("Profile picture updated successfully!");
     } catch (error) {
         console.error("Error uploading file:", error);
-        alert("Upload failed. Please check storage rules.");
+        alert("Upload failed.");
     }
 }
