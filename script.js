@@ -139,6 +139,7 @@ function openTracker(trackerId, trackerName, parentId = 'root', parentName = tra
                 <button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full text-xs hover:bg-gray-200 dark:hover:bg-gray-600">🗑️</button>
             `;
             if (item.type === 'FOLDER') {
+                el.classList.add('cursor-pointer', 'hover:bg-gray-50', 'dark:hover:bg-gray-700');
                 el.addEventListener('click', (e) => {
                     if (e.target.closest('button')) return;
                     openTracker(trackerId, trackerName, doc.id, item.name);
@@ -163,7 +164,7 @@ function renderBreadcrumbs() {
         if (!isLast) {
             el.addEventListener('click', () => openTracker(currentTrackerId, breadcrumbs[0].name, crumb.id, crumb.name));
             breadcrumbsContainer.appendChild(el);
-            breadcrumbsContainer.append(' > ');
+            breadcrumbsContainer.append(' / ');
         } else {
             breadcrumbsContainer.appendChild(el);
         }
