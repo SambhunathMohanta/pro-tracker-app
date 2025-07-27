@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
 const firebaseConfig = { apiKey: "AIzaSyA_9LWNHTUYjW9o5ZgBoEfQqdtYhIUIX0s", authDomain: "gate-tracker-final.firebaseapp.com", projectId: "gate-tracker-final", storageBucket: "gate-tracker-final.firebasestorage.app", messagingSenderId: "586102213734", appId: "1:586102213734:web:88fa9b3a3f0e421b9131a7" };
@@ -87,9 +87,7 @@ async function openTracker(trackerId, parentId = 'root') {
     currentTrackerData = trackerDoc.data();
     
     document.getElementById('tracker-title').textContent = currentTrackerData.name;
-    if (parentId === 'root') {
-        breadcrumbs = [{ id: 'root', name: currentTrackerData.name }];
-    }
+    if (parentId === 'root') { breadcrumbs = [{ id: 'root', name: currentTrackerData.name }]; }
     renderBreadcrumbs();
     showTrackerPage();
     
@@ -206,7 +204,7 @@ async function renderTaskColumnsEditor(trackerId) {
     
     const trackerData = allTrackers.find(t => t.id === trackerId);
     let columnsHTML = '<h4 class="text-md font-semibold mt-4 mb-2">Task Columns</h4>';
-    trackerData.taskColumns.forEach((col, index) => {
+    (trackerData.taskColumns || []).forEach((col, index) => {
         columnsHTML += `<div class="flex items-center space-x-2 mb-2"><input type="text" value="${col}" data-index="${index}" class="task-column-input flex-grow p-2 border rounded-md bg-gray-700 border-gray-600"><button data-index="${index}" class="delete-column-btn text-red-500 hover:text-red-400">🗑️</button></div>`;
     });
     columnsHTML += `<div class="flex items-center space-x-2 mt-3"><input type="text" id="new-task-column" placeholder="New column name" class="flex-grow p-2 border rounded-md bg-gray-700 border-gray-600"><button id="add-column-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Add</button></div>`;
@@ -217,7 +215,7 @@ async function renderTaskColumnsEditor(trackerId) {
 }
 async function updateTaskColumn(trackerId, index, newName) { const d = allTrackers.find(t => t.id === trackerId); d.taskColumns[index] = newName.trim(); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: d.taskColumns }); }
 async function deleteTaskColumn(trackerId, index) { const d = allTrackers.find(t => t.id === trackerId); d.taskColumns.splice(index, 1); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: d.taskColumns }); renderTaskColumnsEditor(trackerId); }
-async function addTaskColumn(trackerId) { const newName = document.getElementById('new-task-column').value.trim(); if (newName) { const d = allTrackers.find(t => t.id === trackerId); d.taskColumns.push(newName); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: d.taskColumns }); renderTaskColumnsEditor(trackerId); } }
+async function addTaskColumn(trackerId) { const newName = document.getElementById('new-task-column').value.trim(); if (newName) { const d = allTrackers.find(t => t.id === trackerId); if (!d.taskColumns) d.taskColumns = []; d.taskColumns.push(newName); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: d.taskColumns }); renderTaskColumnsEditor(trackerId); } }
 async function loadUserProfile() {
     const userDocRef = doc(db, "users", userId);
     const docSnap = await getDoc(userDocRef);
@@ -235,9 +233,14 @@ async function handlePhotoUpload(event) {
     const file = event.target.files[0]; if (!file) return;
     const storageRef = ref(storage, `profile-pictures/${userId}`);
     alert("Uploading picture...");
-    await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(storageRef);
-    await setDoc(doc(db, "users", userId), { profilePicUrl: downloadURL }, { merge: true });
-    loadUserProfile();
-    alert("Profile picture updated!");
+    try {
+        await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(storageRef);
+        await setDoc(doc(db, "users", userId), { profilePicUrl: downloadURL }, { merge: true });
+        loadUserProfile();
+        alert("Profile picture updated!");
+    } catch(error) {
+        console.error("Upload failed:", error);
+        alert("Upload failed. Please check storage rules and network.");
+    }
 }
