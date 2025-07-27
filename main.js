@@ -1,16 +1,20 @@
+// --- IMPORTS ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
+// --- FIREBASE CONFIG ---
 const firebaseConfig = { apiKey: "AIzaSyA_9LWNHTUYjW9o5ZgBoEfQqdtYhIUIX0s", authDomain: "gate-tracker-final.firebaseapp.com", projectId: "gate-tracker-final", storageBucket: "gate-tracker-final.firebasestorage.app", messagingSenderId: "586102213734", appId: "1:586102213734:web:88fa9b3a3f0e421b9131a7" };
 
+// --- GLOBAL STATE ---
 let app, db, auth, storage, userId;
 let trackersUnsubscribe = null, itemsUnsubscribe = null;
 let currentTrackerId = null, currentTrackerData = null, currentParentId = 'root';
 let breadcrumbs = [];
 let allTrackers = [];
 
+// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     const loaderPercentage = document.getElementById('loader-percentage');
     const loaderCircle = document.querySelector('.loader-circle');
@@ -33,10 +37,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) { console.error("Firebase Init Error:", error); }
 });
 
+// --- EVENT LISTENERS ---
 function attachEventListeners() {
     document.getElementById('settings-btn').addEventListener('click', showSettingsPage);
     document.getElementById('back-to-dashboard-btn').addEventListener('click', showDashboardPage);
-    document.getElementById('back-to-dashboard-from-tracker-btn').addEventListener('click', () => openTracker(currentTrackerId, breadcrumbs[breadcrumbs.length - 2]?.id || 'root'));
+    document.getElementById('back-btn').addEventListener('click', handleBackNavigation);
     document.getElementById('create-tracker-btn').addEventListener('click', handleCreateTracker);
     document.getElementById('profile-pic-container').addEventListener('click', () => document.getElementById('photo-upload').click());
     document.getElementById('upload-btn').addEventListener('click', () => document.getElementById('photo-upload').click());
@@ -49,10 +54,22 @@ function attachEventListeners() {
     document.getElementById('display-name-input').addEventListener('change', (e) => updateDisplayName(e.target.value));
 }
 
+// --- PAGE NAVIGATION ---
 function showDashboardPage() { document.getElementById('dashboard-page').classList.remove('hidden'); document.getElementById('settings-page').classList.add('hidden'); document.getElementById('tracker-page').classList.add('hidden'); if (itemsUnsubscribe) itemsUnsubscribe(); }
 function showSettingsPage() { document.getElementById('dashboard-page').classList.add('hidden'); document.getElementById('settings-page').classList.remove('hidden'); document.getElementById('tracker-page').classList.add('hidden'); populateTrackerSelect(); }
 function showTrackerPage() { document.getElementById('dashboard-page').classList.add('hidden'); document.getElementById('settings-page').classList.add('hidden'); document.getElementById('tracker-page').classList.remove('hidden'); }
 
+function handleBackNavigation() {
+    if (breadcrumbs.length > 1) {
+        breadcrumbs.pop();
+        const prevCrumb = breadcrumbs[breadcrumbs.length - 1];
+        openTracker(currentTrackerId, prevCrumb.id);
+    } else {
+        showDashboardPage();
+    }
+}
+
+// --- RENDER FUNCTIONS ---
 function renderTrackers() {
     if (trackersUnsubscribe) trackersUnsubscribe();
     const trackersGrid = document.getElementById('trackers-grid');
@@ -71,28 +88,16 @@ function renderTrackers() {
 }
 
 async function openTracker(trackerId, parentId = 'root') {
-    currentTrackerId = trackerId;
-    currentParentId = parentId;
-    
+    currentTrackerId = trackerId; currentParentId = parentId;
     const trackerDoc = await getDoc(doc(db, "users", userId, "trackers", trackerId));
     if (!trackerDoc.exists()) return showDashboardPage();
     currentTrackerData = trackerDoc.data();
     
     document.getElementById('tracker-title').textContent = currentTrackerData.name;
-    if (parentId === 'root') {
-        breadcrumbs = [{ id: 'root', name: currentTrackerData.name }];
-    } else {
-        const parentDoc = await getDoc(doc(db, "users", userId, "trackers", trackerId, "items", parentId));
-        const parentName = parentDoc.data().name;
-        const parentIndex = breadcrumbs.findIndex(b => b.id === parentId);
-        if (parentIndex !== -1) {
-            breadcrumbs.splice(parentIndex + 1);
-        } else {
-            breadcrumbs.push({ id: parentId, name: parentName });
-        }
-    }
-    renderBreadcrumbs();
+    if (parentId === 'root') { breadcrumbs = [{ id: 'root', name: currentTrackerData.name }]; }
+    
     showTrackerPage();
+    renderBreadcrumbs();
     
     if (itemsUnsubscribe) itemsUnsubscribe();
     const itemsContainer = document.getElementById('items-container');
@@ -108,16 +113,17 @@ async function openTracker(trackerId, parentId = 'root') {
             let contentHTML = '';
             if (item.type === 'FOLDER') {
                 el.classList.add('cursor-pointer', 'hover:bg-gray-700');
-                el.addEventListener('click', (e) => { if (e.target.closest('button')) return; openTracker(trackerId, doc.id); });
+                el.addEventListener('click', (e) => { if (e.target.closest('button')) return; breadcrumbs.push({ id: doc.id, name: item.name }); openTracker(trackerId, doc.id); });
                 contentHTML = `<div class="flex justify-between items-center"><div class="flex items-center space-x-3"><span class="text-2xl">📁</span><span class="font-semibold">${item.name}</span></div><div class="item-card-actions space-x-2"><button data-id="${doc.id}" class="edit-item-btn p-1 rounded-full text-xs hover:bg-gray-600">✏️</button><button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full text-xs hover:bg-gray-600">🗑️</button></div></div>`;
-            } else {
-                const totalTasks = currentTrackerData.taskColumns.length;
+            } else { // ITEM
+                const taskColumns = item.taskColumns || currentTrackerData.taskColumns;
+                const totalTasks = taskColumns.length;
                 const completedTasks = Object.values(item.tasks || {}).filter(Boolean).length;
                 const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
                 if(progress === 100) el.classList.add('is-complete');
 
                 let checklistHTML = '<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">';
-                currentTrackerData.taskColumns.forEach(task => {
+                taskColumns.forEach(task => {
                     const isChecked = item.tasks?.[task] || false;
                     checklistHTML += `<label class="flex items-center space-x-2 text-sm"><input type="checkbox" data-id="${doc.id}" data-task="${task}" class="h-4 w-4 rounded text-purple-600 focus:ring-purple-500 bg-gray-700 border-gray-600" ${isChecked ? 'checked' : ''}><span>${task}</span></label>`;
                 });
@@ -136,18 +142,18 @@ async function openTracker(trackerId, parentId = 'root') {
 function renderBreadcrumbs() {
     const breadcrumbsContainer = document.getElementById('breadcrumbs');
     breadcrumbsContainer.innerHTML = '';
-    breadcrumbs.forEach((crumb, index) => {
-        if (!crumb) return;
+    breadcrumbs.forEach((crumb) => {
         const el = document.createElement('a');
         el.className = 'cursor-pointer hover:underline text-purple-400';
         el.textContent = crumb.name;
         el.onclick = () => openTracker(currentTrackerId, crumb.id);
         breadcrumbsContainer.appendChild(el);
-        if (index < breadcrumbs.length - 1) breadcrumbsContainer.append(' / ');
+        breadcrumbsContainer.append(' / ');
     });
+    breadcrumbsContainer.removeChild(breadcrumbsContainer.lastChild);
 }
 
-// All other functions...
+// --- DATA HANDLING ---
 async function handleCreateTracker() {
     const name = document.getElementById('new-tracker-name').value.trim(); if (!name) return;
     await addDoc(collection(db, "users", userId, "trackers"), { name, createdAt: serverTimestamp(), taskColumns: ['Videos', 'Notes', 'PYQs'] });
@@ -193,7 +199,7 @@ async function deleteItem(itemId) {
     document.getElementById('delete-modal').classList.add('hidden');
 }
 async function handleDeleteTracker() { const trackerId = document.getElementById('tracker-select').value; if (trackerId) openDeleteModal(trackerId, true); }
-async function deleteTracker(trackerId) { alert("For safety, deleting entire trackers requires a Cloud Function, which is a future upgrade."); document.getElementById('delete-modal').classList.add('hidden'); }
+async function deleteTracker(trackerId) { alert("For safety, deleting entire trackers requires a Cloud Function (a future upgrade). You can delete individual items inside the tracker for now."); document.getElementById('delete-modal').classList.add('hidden'); }
 async function handleTaskCheck(event) {
     const { id, task } = event.target.dataset; const isChecked = event.target.checked;
     await updateDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", id), { [`tasks.${task}`]: isChecked });
@@ -207,16 +213,13 @@ async function populateTrackerSelect() {
 async function renderTaskColumnsEditor(trackerId) {
     const editorDiv = document.getElementById('task-columns-editor'); const deleteBtn = document.getElementById('delete-tracker-btn');
     if (!trackerId) { editorDiv.innerHTML = ''; deleteBtn.classList.add('hidden'); return; }
-    
     const trackerData = allTrackers.find(t => t.id === trackerId);
     let columnsHTML = '<h4 class="text-md font-semibold mt-4 mb-2">Task Columns</h4>';
     trackerData.taskColumns.forEach((col, index) => {
         columnsHTML += `<div class="flex items-center space-x-2 mb-2"><input type="text" value="${col}" data-index="${index}" class="task-column-input flex-grow p-2 border rounded-md bg-gray-700 border-gray-600"><button data-index="${index}" class="delete-column-btn text-red-500 hover:text-red-400">🗑️</button></div>`;
     });
     columnsHTML += `<div class="flex items-center space-x-2 mt-3"><input type="text" id="new-task-column" placeholder="New column name" class="flex-grow p-2 border rounded-md bg-gray-700 border-gray-600"><button id="add-column-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Add</button></div>`;
-    editorDiv.innerHTML = columnsHTML;
-    deleteBtn.classList.remove('hidden');
-
+    editorDiv.innerHTML = columnsHTML; deleteBtn.classList.remove('hidden');
     document.querySelectorAll('.task-column-input').forEach(input => input.addEventListener('change', (e) => updateTaskColumn(trackerId, e.target.dataset.index, e.target.value)));
     document.querySelectorAll('.delete-column-btn').forEach(btn => btn.addEventListener('click', (e) => deleteTaskColumn(trackerId, e.target.dataset.index)));
     document.getElementById('add-column-btn').addEventListener('click', () => addTaskColumn(trackerId));
@@ -229,8 +232,7 @@ async function loadUserProfile() {
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists() && docSnap.data().profilePicUrl) {
         document.getElementById('profile-pic').src = docSnap.data().profilePicUrl;
-        document.getElementById('profile-pic').classList.remove('hidden');
-        document.getElementById('default-pic-icon').classList.add('hidden');
+        document.getElementById('profile-pic').classList.remove('hidden'); document.getElementById('default-pic-icon').classList.add('hidden');
     }
     if (docSnap.exists() && docSnap.data().displayName) {
         document.getElementById('welcome-message').textContent = `Welcome, ${docSnap.data().displayName}!`;
@@ -247,7 +249,4 @@ async function handlePhotoUpload(event) {
     await setDoc(doc(db, "users", userId), { profilePicUrl: downloadURL }, { merge: true });
     loadUserProfile();
     alert("Profile picture updated!");
-}
-async function calculateAndDisplayOverallProgress() {
-    // Placeholder for now
 }
