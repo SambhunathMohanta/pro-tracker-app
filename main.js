@@ -1,43 +1,24 @@
-// --- IMPORTS ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
-// --- FIREBASE CONFIG ---
-const firebaseConfig = {
-    apiKey: "AIzaSyA_9LWNHTUYjW9o5ZgBoEfQqdtYhIUIX0s",
-    authDomain: "gate-tracker-final.firebaseapp.com",
-    projectId: "gate-tracker-final",
-    storageBucket: "gate-tracker-final.firebasestorage.app",
-    messagingSenderId: "586102213734",
-    appId: "1:586102213734:web:88fa9b3a3f0e421b9131a7"
-};
+const firebaseConfig = { apiKey: "AIzaSyA_9LWNHTUYjW9o5ZgBoEfQqdtYhIUIX0s", authDomain: "gate-tracker-final.firebaseapp.com", projectId: "gate-tracker-final", storageBucket: "gate-tracker-final.firebasestorage.app", messagingSenderId: "586102213734", appId: "1:586102213734:web:88fa9b3a3f0e421b9131a7" };
 
-// --- GLOBAL STATE ---
 let app, db, auth, storage, userId;
 let trackersUnsubscribe = null, itemsUnsubscribe = null;
 let currentTrackerId = null, currentTrackerData = null, currentParentId = 'root';
 let breadcrumbs = [];
-let isEditMode = false;
-let allTrackers = []; // Cache for settings page
+let allTrackers = [];
 
-// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Start loader animation
     const loaderPercentage = document.getElementById('loader-percentage');
     const loaderCircle = document.querySelector('.loader-circle');
     let currentPercent = 0;
     const interval = setInterval(() => {
-        if (currentPercent < 100) {
-            currentPercent++;
-            loaderPercentage.textContent = `${currentPercent}%`;
-            const hue = (currentPercent / 100) * 120; // 0=red, 120=green
-            loaderCircle.style.background = `conic-gradient(hsl(${hue}, 70%, 50%) ${currentPercent}%, #1f2937 ${currentPercent}%)`;
-        } else { clearInterval(interval); }
+        if (currentPercent < 100) { currentPercent++; loaderPercentage.textContent = `${currentPercent}%`; const hue = (currentPercent / 100) * 120; loaderCircle.style.background = `conic-gradient(hsl(${hue}, 70%, 50%) ${currentPercent}%, #1f2937 ${currentPercent}%)`; } else { clearInterval(interval); }
     }, 20);
 
-    // Initialize Firebase
     try {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app); auth = getAuth(app); storage = getStorage(app);
@@ -45,22 +26,17 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!user) { signInAnonymously(auth); return; }
             userId = user.uid;
             attachEventListeners();
-            loadProfilePicture(userId);
+            loadUserProfile();
             renderTrackers();
-            
-            setTimeout(() => {
-                document.getElementById('loader-overlay').classList.add('hidden');
-                document.getElementById('app-container').style.opacity = '1';
-            }, 2200);
+            setTimeout(() => { document.getElementById('loader-overlay').classList.add('hidden'); document.getElementById('app-container').style.opacity = '1'; }, 2200);
         });
     } catch (error) { console.error("Firebase Init Error:", error); }
 });
 
-// --- EVENT LISTENERS ---
 function attachEventListeners() {
     document.getElementById('settings-btn').addEventListener('click', showSettingsPage);
     document.getElementById('back-to-dashboard-btn').addEventListener('click', showDashboardPage);
-    document.getElementById('back-to-dashboard-from-tracker-btn').addEventListener('click', showDashboardPage);
+    document.getElementById('back-to-dashboard-from-tracker-btn').addEventListener('click', () => openTracker(currentTrackerId, breadcrumbs[breadcrumbs.length - 2]?.id || 'root'));
     document.getElementById('create-tracker-btn').addEventListener('click', handleCreateTracker);
     document.getElementById('profile-pic-container').addEventListener('click', () => document.getElementById('photo-upload').click());
     document.getElementById('upload-btn').addEventListener('click', () => document.getElementById('photo-upload').click());
@@ -68,18 +44,15 @@ function attachEventListeners() {
     document.getElementById('add-new-item-btn').addEventListener('click', () => openItemModal());
     document.getElementById('cancel-item-btn').addEventListener('click', () => document.getElementById('item-modal').classList.add('hidden'));
     document.getElementById('cancel-delete-btn').addEventListener('click', () => document.getElementById('delete-modal').classList.add('hidden'));
-    document.getElementById('toggle-edit-mode-btn').addEventListener('click', toggleEditMode);
     document.getElementById('tracker-select').addEventListener('change', (e) => renderTaskColumnsEditor(e.target.value));
     document.getElementById('delete-tracker-btn').addEventListener('click', handleDeleteTracker);
+    document.getElementById('display-name-input').addEventListener('change', (e) => updateDisplayName(e.target.value));
 }
 
-// --- PAGE NAVIGATION ---
-function showDashboardPage() { document.getElementById('dashboard-page').classList.remove('hidden'); document.getElementById('settings-page').classList.add('hidden'); document.getElementById('tracker-page').classList.add('hidden'); if (itemsUnsubscribe) itemsUnsubscribe(); calculateAndDisplayOverallProgress(); }
+function showDashboardPage() { document.getElementById('dashboard-page').classList.remove('hidden'); document.getElementById('settings-page').classList.add('hidden'); document.getElementById('tracker-page').classList.add('hidden'); if (itemsUnsubscribe) itemsUnsubscribe(); }
 function showSettingsPage() { document.getElementById('dashboard-page').classList.add('hidden'); document.getElementById('settings-page').classList.remove('hidden'); document.getElementById('tracker-page').classList.add('hidden'); populateTrackerSelect(); }
 function showTrackerPage() { document.getElementById('dashboard-page').classList.add('hidden'); document.getElementById('settings-page').classList.add('hidden'); document.getElementById('tracker-page').classList.remove('hidden'); }
-function toggleEditMode() { isEditMode = !isEditMode; document.getElementById('items-container').classList.toggle('edit-mode'); }
 
-// --- RENDER FUNCTIONS ---
 function renderTrackers() {
     if (trackersUnsubscribe) trackersUnsubscribe();
     const trackersGrid = document.getElementById('trackers-grid');
@@ -94,18 +67,30 @@ function renderTrackers() {
             card.addEventListener('click', () => openTracker(tracker.id));
             trackersGrid.appendChild(card);
         });
-        calculateAndDisplayOverallProgress();
     });
 }
 
 async function openTracker(trackerId, parentId = 'root') {
-    currentTrackerId = trackerId; currentParentId = parentId;
+    currentTrackerId = trackerId;
+    currentParentId = parentId;
+    
     const trackerDoc = await getDoc(doc(db, "users", userId, "trackers", trackerId));
     if (!trackerDoc.exists()) return showDashboardPage();
     currentTrackerData = trackerDoc.data();
     
     document.getElementById('tracker-title').textContent = currentTrackerData.name;
-    if (parentId === 'root') { breadcrumbs = [{ id: 'root', name: currentTrackerData.name }]; }
+    if (parentId === 'root') {
+        breadcrumbs = [{ id: 'root', name: currentTrackerData.name }];
+    } else {
+        const parentDoc = await getDoc(doc(db, "users", userId, "trackers", trackerId, "items", parentId));
+        const parentName = parentDoc.data().name;
+        const parentIndex = breadcrumbs.findIndex(b => b.id === parentId);
+        if (parentIndex !== -1) {
+            breadcrumbs.splice(parentIndex + 1);
+        } else {
+            breadcrumbs.push({ id: parentId, name: parentName });
+        }
+    }
     renderBreadcrumbs();
     showTrackerPage();
     
@@ -123,7 +108,7 @@ async function openTracker(trackerId, parentId = 'root') {
             let contentHTML = '';
             if (item.type === 'FOLDER') {
                 el.classList.add('cursor-pointer', 'hover:bg-gray-700');
-                el.addEventListener('click', (e) => { if (e.target.closest('button')) return; breadcrumbs.push({ id: doc.id, name: item.name }); openTracker(trackerId, doc.id); });
+                el.addEventListener('click', (e) => { if (e.target.closest('button')) return; openTracker(trackerId, doc.id); });
                 contentHTML = `<div class="flex justify-between items-center"><div class="flex items-center space-x-3"><span class="text-2xl">📁</span><span class="font-semibold">${item.name}</span></div><div class="item-card-actions space-x-2"><button data-id="${doc.id}" class="edit-item-btn p-1 rounded-full text-xs hover:bg-gray-600">✏️</button><button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full text-xs hover:bg-gray-600">🗑️</button></div></div>`;
             } else {
                 const totalTasks = currentTrackerData.taskColumns.length;
@@ -152,6 +137,7 @@ function renderBreadcrumbs() {
     const breadcrumbsContainer = document.getElementById('breadcrumbs');
     breadcrumbsContainer.innerHTML = '';
     breadcrumbs.forEach((crumb, index) => {
+        if (!crumb) return;
         const el = document.createElement('a');
         el.className = 'cursor-pointer hover:underline text-purple-400';
         el.textContent = crumb.name;
@@ -161,19 +147,65 @@ function renderBreadcrumbs() {
     });
 }
 
-// --- SETTINGS PAGE LOGIC ---
-function populateTrackerSelect() {
+// All other functions...
+async function handleCreateTracker() {
+    const name = document.getElementById('new-tracker-name').value.trim(); if (!name) return;
+    await addDoc(collection(db, "users", userId, "trackers"), { name, createdAt: serverTimestamp(), taskColumns: ['Videos', 'Notes', 'PYQs'] });
+    document.getElementById('new-tracker-name').value = ''; showDashboardPage();
+}
+async function openItemModal(itemId = null) {
+    const modal = document.getElementById('item-modal'); const nameInput = document.getElementById('item-name-input'); const typeCheckbox = document.getElementById('item-type-checkbox'); const saveBtn = document.getElementById('save-item-btn');
+    if (itemId) {
+        document.getElementById('modal-title').textContent = 'Edit Item';
+        const itemDoc = await getDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId));
+        const item = itemDoc.data(); nameInput.value = item.name; typeCheckbox.checked = item.type === 'FOLDER';
+    } else {
+        document.getElementById('modal-title').textContent = 'Create New Item';
+        nameInput.value = ''; typeCheckbox.checked = false;
+    }
+    saveBtn.onclick = () => saveItem(itemId); modal.classList.remove('hidden');
+}
+async function saveItem(itemId) {
+    const name = document.getElementById('item-name-input').value.trim(); if (!name) return;
+    const type = document.getElementById('item-type-checkbox').checked ? 'FOLDER' : 'ITEM';
+    const collectionRef = collection(db, "users", userId, "trackers", currentTrackerId, "items");
+    try {
+        if (itemId) { await updateDoc(doc(collectionRef, itemId), { name, type }); } 
+        else { await addDoc(collectionRef, { name, type, parentId: currentParentId, createdAt: serverTimestamp(), tasks: {} }); }
+        document.getElementById('item-modal').classList.add('hidden');
+    } catch (error) { console.error("Error saving item:", error); }
+}
+async function openDeleteModal(itemId, isTracker = false) {
+    const modal = document.getElementById('delete-modal'); const text = document.getElementById('delete-text'); const confirmBtn = document.getElementById('confirm-delete-btn');
+    if (isTracker) {
+        const tracker = allTrackers.find(t => t.id === itemId);
+        text.textContent = `Delete tracker "${tracker.name}"? This cannot be undone.`;
+        confirmBtn.onclick = () => deleteTracker(itemId);
+    } else {
+        const itemDoc = await getDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId));
+        text.textContent = `Delete "${itemDoc.data().name}"? This cannot be undone.`;
+        confirmBtn.onclick = () => deleteItem(itemId);
+    }
+    modal.classList.remove('hidden');
+}
+async function deleteItem(itemId) {
+    await deleteDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId));
+    document.getElementById('delete-modal').classList.add('hidden');
+}
+async function handleDeleteTracker() { const trackerId = document.getElementById('tracker-select').value; if (trackerId) openDeleteModal(trackerId, true); }
+async function deleteTracker(trackerId) { alert("For safety, deleting entire trackers requires a Cloud Function, which is a future upgrade."); document.getElementById('delete-modal').classList.add('hidden'); }
+async function handleTaskCheck(event) {
+    const { id, task } = event.target.dataset; const isChecked = event.target.checked;
+    await updateDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", id), { [`tasks.${task}`]: isChecked });
+}
+async function populateTrackerSelect() {
     const trackerSelect = document.getElementById('tracker-select');
     trackerSelect.innerHTML = '<option value="">-- Select a Tracker to Edit --</option>';
-    allTrackers.forEach(tracker => {
-        trackerSelect.innerHTML += `<option value="${tracker.id}">${tracker.name}</option>`;
-    });
-    document.getElementById('task-columns-editor').innerHTML = '';
-    document.getElementById('delete-tracker-btn').classList.add('hidden');
+    allTrackers.forEach(tracker => { trackerSelect.innerHTML += `<option value="${tracker.id}">${tracker.name}</option>`; });
+    document.getElementById('task-columns-editor').innerHTML = ''; document.getElementById('delete-tracker-btn').classList.add('hidden');
 }
 async function renderTaskColumnsEditor(trackerId) {
-    const editorDiv = document.getElementById('task-columns-editor');
-    const deleteBtn = document.getElementById('delete-tracker-btn');
+    const editorDiv = document.getElementById('task-columns-editor'); const deleteBtn = document.getElementById('delete-tracker-btn');
     if (!trackerId) { editorDiv.innerHTML = ''; deleteBtn.classList.add('hidden'); return; }
     
     const trackerData = allTrackers.find(t => t.id === trackerId);
@@ -189,83 +221,23 @@ async function renderTaskColumnsEditor(trackerId) {
     document.querySelectorAll('.delete-column-btn').forEach(btn => btn.addEventListener('click', (e) => deleteTaskColumn(trackerId, e.target.dataset.index)));
     document.getElementById('add-column-btn').addEventListener('click', () => addTaskColumn(trackerId));
 }
-async function updateTaskColumn(trackerId, index, newName) { const trackerData = allTrackers.find(t => t.id === trackerId); trackerData.taskColumns[index] = newName.trim(); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: trackerData.taskColumns }); }
-async function deleteTaskColumn(trackerId, index) { const trackerData = allTrackers.find(t => t.id === trackerId); trackerData.taskColumns.splice(index, 1); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: trackerData.taskColumns }); renderTaskColumnsEditor(trackerId); }
-async function addTaskColumn(trackerId) { const newName = document.getElementById('new-task-column').value.trim(); if (newName) { const trackerData = allTrackers.find(t => t.id === trackerId); trackerData.taskColumns.push(newName); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: trackerData.taskColumns }); renderTaskColumnsEditor(trackerId); } }
-
-// --- DATA HANDLING & MODALS ---
-async function handleCreateTracker() {
-    const name = document.getElementById('new-tracker-name').value.trim();
-    if (!name) return alert("Please enter a name.");
-    await addDoc(collection(db, "users", userId, "trackers"), { name, createdAt: serverTimestamp(), taskColumns: ['Videos', 'Notes', 'PYQs'] });
-    document.getElementById('new-tracker-name').value = '';
-    showDashboardPage();
-}
-async function openItemModal(itemId = null) {
-    const modal = document.getElementById('item-modal'); const nameInput = document.getElementById('item-name-input'); const typeCheckbox = document.getElementById('item-type-checkbox'); const saveBtn = document.getElementById('save-item-btn');
-    if (itemId) {
-        document.getElementById('modal-title').textContent = 'Edit Item';
-        const itemDoc = await getDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId));
-        const item = itemDoc.data(); nameInput.value = item.name; typeCheckbox.checked = item.type === 'FOLDER';
-    } else {
-        document.getElementById('modal-title').textContent = 'Create New Item';
-        nameInput.value = ''; typeCheckbox.checked = false;
-    }
-    saveBtn.onclick = () => saveItem(itemId);
-    modal.classList.remove('hidden');
-}
-async function saveItem(itemId) {
-    const name = document.getElementById('item-name-input').value.trim(); if (!name) return alert('Name is required.');
-    const type = document.getElementById('item-type-checkbox').checked ? 'FOLDER' : 'ITEM';
-    const collectionRef = collection(db, "users", userId, "trackers", currentTrackerId, "items");
-    try {
-        if (itemId) { await updateDoc(doc(collectionRef, itemId), { name, type }); } 
-        else { await addDoc(collectionRef, { name, type, parentId: currentParentId, createdAt: serverTimestamp(), tasks: {} }); }
-        document.getElementById('item-modal').classList.add('hidden');
-    } catch (error) { console.error("Error saving item:", error); }
-}
-async function openDeleteModal(itemId, isTracker = false) {
-    const modal = document.getElementById('delete-modal'); const text = document.getElementById('delete-text'); const confirmBtn = document.getElementById('confirm-delete-btn');
-    if (isTracker) {
-        const tracker = allTrackers.find(t => t.id === itemId);
-        text.textContent = `This will permanently delete the tracker "${tracker.name}" and all its contents.`;
-        confirmBtn.onclick = () => deleteTracker(itemId);
-    } else {
-        const itemDoc = await getDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId));
-        text.textContent = `This will permanently delete "${itemDoc.data().name}".`;
-        confirmBtn.onclick = () => deleteItem(itemId);
-    }
-    modal.classList.remove('hidden');
-}
-async function deleteItem(itemId) {
-    // Note: To delete sub-folders, a cloud function is required. This only deletes the selected item.
-    try { await deleteDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId)); document.getElementById('delete-modal').classList.add('hidden'); } 
-    catch (error) { console.error("Error deleting item:", error); }
-}
-async function handleDeleteTracker() {
-    const trackerId = document.getElementById('tracker-select').value;
-    if (trackerId) openDeleteModal(trackerId, true);
-}
-async function deleteTracker(trackerId) {
-    alert("Deleting a tracker and all its contents is a complex operation that requires a Cloud Function. For now, this button is a placeholder.");
-    document.getElementById('delete-modal').classList.add('hidden');
-}
-async function handleTaskCheck(event) {
-    const { id, task } = event.target.dataset; const isChecked = event.target.checked;
-    const itemRef = doc(db, "users", userId, "trackers", currentTrackerId, "items", id);
-    await updateDoc(itemRef, { [`tasks.${task}`]: isChecked });
-}
-
-// --- PROFILE PICTURE ---
-async function loadProfilePicture(uid) {
-    const profilePicImg = document.getElementById('profile-pic'); const defaultPicIcon = document.getElementById('default-pic-icon');
-    const userDocRef = doc(db, "users", uid);
+async function updateTaskColumn(trackerId, index, newName) { const d = allTrackers.find(t => t.id === trackerId); d.taskColumns[index] = newName.trim(); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: d.taskColumns }); }
+async function deleteTaskColumn(trackerId, index) { const d = allTrackers.find(t => t.id === trackerId); d.taskColumns.splice(index, 1); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: d.taskColumns }); renderTaskColumnsEditor(trackerId); }
+async function addTaskColumn(trackerId) { const newName = document.getElementById('new-task-column').value.trim(); if (newName) { const d = allTrackers.find(t => t.id === trackerId); d.taskColumns.push(newName); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: d.taskColumns }); renderTaskColumnsEditor(trackerId); } }
+async function loadUserProfile() {
+    const userDocRef = doc(db, "users", userId);
     const docSnap = await getDoc(userDocRef);
     if (docSnap.exists() && docSnap.data().profilePicUrl) {
-        profilePicImg.src = docSnap.data().profilePicUrl;
-        profilePicImg.classList.remove('hidden'); defaultPicIcon.classList.add('hidden');
+        document.getElementById('profile-pic').src = docSnap.data().profilePicUrl;
+        document.getElementById('profile-pic').classList.remove('hidden');
+        document.getElementById('default-pic-icon').classList.add('hidden');
+    }
+    if (docSnap.exists() && docSnap.data().displayName) {
+        document.getElementById('welcome-message').textContent = `Welcome, ${docSnap.data().displayName}!`;
+        document.getElementById('display-name-input').value = docSnap.data().displayName;
     }
 }
+async function updateDisplayName(name) { await setDoc(doc(db, "users", userId), { displayName: name.trim() }, { merge: true }); document.getElementById('welcome-message').textContent = `Welcome, ${name.trim()}!`; }
 async function handlePhotoUpload(event) {
     const file = event.target.files[0]; if (!file) return;
     const storageRef = ref(storage, `profile-pictures/${userId}`);
@@ -273,23 +245,9 @@ async function handlePhotoUpload(event) {
     await uploadBytes(storageRef, file);
     const downloadURL = await getDownloadURL(storageRef);
     await setDoc(doc(db, "users", userId), { profilePicUrl: downloadURL }, { merge: true });
-    loadProfilePicture(userId);
+    loadUserProfile();
     alert("Profile picture updated!");
 }
-// --- PROGRESS CALCULATION ---
 async function calculateAndDisplayOverallProgress() {
-    let totalTasks = 0;
-    let completedTasks = 0;
-    for (const tracker of allTrackers) {
-        const itemsQuery = query(collection(db, "users", userId, "trackers", tracker.id, "items"), where("type", "==", "ITEM"));
-        const itemsSnapshot = await getDocs(itemsQuery);
-        itemsSnapshot.forEach(itemDoc => {
-            const item = itemDoc.data();
-            totalTasks += tracker.taskColumns.length;
-            completedTasks += Object.values(item.tasks || {}).filter(Boolean).length;
-        });
-    }
-    const overallPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-    document.getElementById('overall-progress-text').textContent = `${overallPercentage}%`;
-    document.getElementById('overall-progress-bar').style.width = `${overallPercentage}%`;
+    // Placeholder for now
 }
