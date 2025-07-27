@@ -1,8 +1,8 @@
 // --- IMPORTS ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
 // --- FIREBASE CONFIG ---
 const firebaseConfig = {
@@ -22,7 +22,7 @@ let breadcrumbs = [];
 let isEditMode = false;
 let allTrackers = []; // Cache for settings page
 
-// --- INITIALIZATION & EVENT LISTENERS ---
+// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     // Start loader animation
     const loaderPercentage = document.getElementById('loader-percentage');
@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else { clearInterval(interval); }
     }, 20);
 
+    // Initialize Firebase
     try {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app); auth = getAuth(app); storage = getStorage(app);
@@ -55,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (error) { console.error("Firebase Init Error:", error); }
 });
 
+// --- EVENT LISTENERS ---
 function attachEventListeners() {
     document.getElementById('settings-btn').addEventListener('click', showSettingsPage);
     document.getElementById('back-to-dashboard-btn').addEventListener('click', showDashboardPage);
@@ -83,7 +85,7 @@ function renderTrackers() {
     const trackersGrid = document.getElementById('trackers-grid');
     const q = query(collection(db, "users", userId, "trackers"), orderBy("createdAt", "desc"));
     trackersUnsubscribe = onSnapshot(q, (snapshot) => {
-        allTrackers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })); // Cache trackers
+        allTrackers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         trackersGrid.innerHTML = snapshot.empty ? `<p class="text-center col-span-full text-gray-500">No trackers yet. Go to settings!</p>` : '';
         allTrackers.forEach(tracker => {
             const card = document.createElement('div');
@@ -96,34 +98,6 @@ function renderTrackers() {
     });
 }
 
-async function openTracker(trackerId, parentId = 'root') { /* ... */ } // (This is a large function, see below)
-function renderBreadcrumbs() { /* ... */ } // (See below)
-
-// --- DATA HANDLING & MODALS ---
-async function handleCreateTracker() { /* ... */ }
-async function handleTaskCheck(event) { /* ... */ }
-async function openItemModal(itemId = null) { /* ... */ }
-async function saveItem(itemId) { /* ... */ }
-async function openDeleteModal(itemId, isTracker = false) { /* ... */ }
-async function deleteItem(itemId) { /* ... */ }
-async function handleDeleteTracker() { /* ... */ }
-
-// --- SETTINGS PAGE LOGIC ---
-function populateTrackerSelect() { /* ... */ }
-async function renderTaskColumnsEditor(trackerId) { /* ... */ }
-async function updateTaskColumn(trackerId, index, newName, columns) { /* ... */ }
-async function deleteTaskColumn(trackerId, index, columns) { /* ... */ }
-async function addTaskColumn(trackerId, columns) { /* ... */ }
-
-// --- PROFILE PICTURE ---
-async function loadProfilePicture(uid) { /* ... */ }
-async function handlePhotoUpload(event) { /* ... */ }
-
-// --- PROGRESS CALCULATION ---
-async function calculateAndDisplayOverallProgress() { /* ... */ }
-
-// --- FULL FUNCTION IMPLEMENTATIONS ---
-
 async function openTracker(trackerId, parentId = 'root') {
     currentTrackerId = trackerId; currentParentId = parentId;
     const trackerDoc = await getDoc(doc(db, "users", userId, "trackers", trackerId));
@@ -131,7 +105,7 @@ async function openTracker(trackerId, parentId = 'root') {
     currentTrackerData = trackerDoc.data();
     
     document.getElementById('tracker-title').textContent = currentTrackerData.name;
-    if (parentId === 'root') breadcrumbs = [{ id: 'root', name: currentTrackerData.name }];
+    if (parentId === 'root') { breadcrumbs = [{ id: 'root', name: currentTrackerData.name }]; }
     renderBreadcrumbs();
     showTrackerPage();
     
@@ -186,6 +160,40 @@ function renderBreadcrumbs() {
         if (index < breadcrumbs.length - 1) breadcrumbsContainer.append(' / ');
     });
 }
+
+// --- SETTINGS PAGE LOGIC ---
+function populateTrackerSelect() {
+    const trackerSelect = document.getElementById('tracker-select');
+    trackerSelect.innerHTML = '<option value="">-- Select a Tracker to Edit --</option>';
+    allTrackers.forEach(tracker => {
+        trackerSelect.innerHTML += `<option value="${tracker.id}">${tracker.name}</option>`;
+    });
+    document.getElementById('task-columns-editor').innerHTML = '';
+    document.getElementById('delete-tracker-btn').classList.add('hidden');
+}
+async function renderTaskColumnsEditor(trackerId) {
+    const editorDiv = document.getElementById('task-columns-editor');
+    const deleteBtn = document.getElementById('delete-tracker-btn');
+    if (!trackerId) { editorDiv.innerHTML = ''; deleteBtn.classList.add('hidden'); return; }
+    
+    const trackerData = allTrackers.find(t => t.id === trackerId);
+    let columnsHTML = '<h4 class="text-md font-semibold mt-4 mb-2">Task Columns</h4>';
+    trackerData.taskColumns.forEach((col, index) => {
+        columnsHTML += `<div class="flex items-center space-x-2 mb-2"><input type="text" value="${col}" data-index="${index}" class="task-column-input flex-grow p-2 border rounded-md bg-gray-700 border-gray-600"><button data-index="${index}" class="delete-column-btn text-red-500 hover:text-red-400">🗑️</button></div>`;
+    });
+    columnsHTML += `<div class="flex items-center space-x-2 mt-3"><input type="text" id="new-task-column" placeholder="New column name" class="flex-grow p-2 border rounded-md bg-gray-700 border-gray-600"><button id="add-column-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Add</button></div>`;
+    editorDiv.innerHTML = columnsHTML;
+    deleteBtn.classList.remove('hidden');
+
+    document.querySelectorAll('.task-column-input').forEach(input => input.addEventListener('change', (e) => updateTaskColumn(trackerId, e.target.dataset.index, e.target.value)));
+    document.querySelectorAll('.delete-column-btn').forEach(btn => btn.addEventListener('click', (e) => deleteTaskColumn(trackerId, e.target.dataset.index)));
+    document.getElementById('add-column-btn').addEventListener('click', () => addTaskColumn(trackerId));
+}
+async function updateTaskColumn(trackerId, index, newName) { const trackerData = allTrackers.find(t => t.id === trackerId); trackerData.taskColumns[index] = newName.trim(); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: trackerData.taskColumns }); }
+async function deleteTaskColumn(trackerId, index) { const trackerData = allTrackers.find(t => t.id === trackerId); trackerData.taskColumns.splice(index, 1); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: trackerData.taskColumns }); renderTaskColumnsEditor(trackerId); }
+async function addTaskColumn(trackerId) { const newName = document.getElementById('new-task-column').value.trim(); if (newName) { const trackerData = allTrackers.find(t => t.id === trackerId); trackerData.taskColumns.push(newName); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: trackerData.taskColumns }); renderTaskColumnsEditor(trackerId); } }
+
+// --- DATA HANDLING & MODALS ---
 async function handleCreateTracker() {
     const name = document.getElementById('new-tracker-name').value.trim();
     if (!name) return alert("Please enter a name.");
@@ -230,7 +238,7 @@ async function openDeleteModal(itemId, isTracker = false) {
     modal.classList.remove('hidden');
 }
 async function deleteItem(itemId) {
-    // Note: This is a simple delete. A full implementation would recursively delete sub-folders.
+    // Note: To delete sub-folders, a cloud function is required. This only deletes the selected item.
     try { await deleteDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId)); document.getElementById('delete-modal').classList.add('hidden'); } 
     catch (error) { console.error("Error deleting item:", error); }
 }
@@ -239,46 +247,16 @@ async function handleDeleteTracker() {
     if (trackerId) openDeleteModal(trackerId, true);
 }
 async function deleteTracker(trackerId) {
-    alert("Deleting a tracker and its sub-collections is a complex operation. For safety, this feature is not fully enabled in this version.");
+    alert("Deleting a tracker and all its contents is a complex operation that requires a Cloud Function. For now, this button is a placeholder.");
     document.getElementById('delete-modal').classList.add('hidden');
-    // A full implementation requires a Firebase Cloud Function to recursively delete sub-collections.
 }
 async function handleTaskCheck(event) {
     const { id, task } = event.target.dataset; const isChecked = event.target.checked;
     const itemRef = doc(db, "users", userId, "trackers", currentTrackerId, "items", id);
     await updateDoc(itemRef, { [`tasks.${task}`]: isChecked });
 }
-function populateTrackerSelect() {
-    const trackerSelect = document.getElementById('tracker-select');
-    trackerSelect.innerHTML = '<option value="">-- Select a Tracker to Edit --</option>';
-    allTrackers.forEach(tracker => {
-        trackerSelect.innerHTML += `<option value="${tracker.id}">${tracker.name}</option>`;
-    });
-    document.getElementById('task-columns-editor').innerHTML = ''; // Clear editor
-    document.getElementById('delete-tracker-btn').classList.add('hidden');
-}
-async function renderTaskColumnsEditor(trackerId) {
-    const editorDiv = document.getElementById('task-columns-editor');
-    const deleteBtn = document.getElementById('delete-tracker-btn');
-    if (!trackerId) { editorDiv.innerHTML = ''; deleteBtn.classList.add('hidden'); return; }
-    
-    const trackerData = allTrackers.find(t => t.id === trackerId);
-    
-    let columnsHTML = '<h4 class="text-md font-semibold mt-4 mb-2">Task Columns</h4>';
-    trackerData.taskColumns.forEach((col, index) => {
-        columnsHTML += `<div class="flex items-center space-x-2 mb-2"><input type="text" value="${col}" data-index="${index}" class="task-column-input flex-grow p-2 border rounded-md bg-gray-700 border-gray-600"><button data-index="${index}" class="delete-column-btn text-red-500 hover:text-red-400">🗑️</button></div>`;
-    });
-    columnsHTML += `<div class="flex items-center space-x-2 mt-3"><input type="text" id="new-task-column" placeholder="New column name" class="flex-grow p-2 border rounded-md bg-gray-700 border-gray-600"><button id="add-column-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Add</button></div>`;
-    editorDiv.innerHTML = columnsHTML;
-    deleteBtn.classList.remove('hidden');
 
-    document.querySelectorAll('.task-column-input').forEach(input => input.addEventListener('change', (e) => updateTaskColumn(trackerId, e.target.dataset.index, e.target.value, trackerData.taskColumns)));
-    document.querySelectorAll('.delete-column-btn').forEach(btn => btn.addEventListener('click', (e) => deleteTaskColumn(trackerId, e.target.dataset.index, trackerData.taskColumns)));
-    document.getElementById('add-column-btn').addEventListener('click', () => addTaskColumn(trackerId, trackerData.taskColumns));
-}
-async function updateTaskColumn(trackerId, index, newName, columns) { columns[index] = newName.trim(); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: columns }); }
-async function deleteTaskColumn(trackerId, index, columns) { columns.splice(index, 1); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: columns }); renderTaskColumnsEditor(trackerId); }
-async function addTaskColumn(trackerId, columns) { const newName = document.getElementById('new-task-column').value.trim(); if (newName) { columns.push(newName); await updateDoc(doc(db, "users", userId, "trackers", trackerId), { taskColumns: columns }); renderTaskColumnsEditor(trackerId); } }
+// --- PROFILE PICTURE ---
 async function loadProfilePicture(uid) {
     const profilePicImg = document.getElementById('profile-pic'); const defaultPicIcon = document.getElementById('default-pic-icon');
     const userDocRef = doc(db, "users", uid);
@@ -298,8 +276,20 @@ async function handlePhotoUpload(event) {
     loadProfilePicture(userId);
     alert("Profile picture updated!");
 }
+// --- PROGRESS CALCULATION ---
 async function calculateAndDisplayOverallProgress() {
-    // This is a complex calculation involving all trackers and items. We can build this next.
-    document.getElementById('overall-progress-text').textContent = `...`;
-    document.getElementById('overall-progress-bar').style.width = `0%`;
+    let totalTasks = 0;
+    let completedTasks = 0;
+    for (const tracker of allTrackers) {
+        const itemsQuery = query(collection(db, "users", userId, "trackers", tracker.id, "items"), where("type", "==", "ITEM"));
+        const itemsSnapshot = await getDocs(itemsQuery);
+        itemsSnapshot.forEach(itemDoc => {
+            const item = itemDoc.data();
+            totalTasks += tracker.taskColumns.length;
+            completedTasks += Object.values(item.tasks || {}).filter(Boolean).length;
+        });
+    }
+    const overallPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    document.getElementById('overall-progress-text').textContent = `${overallPercentage}%`;
+    document.getElementById('overall-progress-bar').style.width = `${overallPercentage}%`;
 }
