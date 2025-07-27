@@ -11,7 +11,6 @@ body { font-family: 'Inter', sans-serif; }
 .loader-circle {width: 150px;height: 150px;border-radius: 50%;display: flex;justify-content: center;align-items: center;font-size: 2em;font-weight: bold;color: white;background: conic-gradient(from 0deg, #16a34a 0%, #dc2626 0%, #1f2937 0%);transition: transform 0.5s ease, background 0.2s linear;}
 #loader-percentage {text-shadow: 0 0 5px rgba(0,0,0,0.5);}
 #app-container {transition: opacity 0.5s ease-in-out;}
-/* New styles for item cards and edit mode */
 .item-card-actions { display: none; }
 .edit-mode .item-card-actions { display: flex; }
 .item-card.is-complete { border-left-color: #22c55e; border-left-width: 4px; }
