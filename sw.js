@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pro-tracker-cache-v3';
+const CACHE_NAME = 'pro-tracker-cache-v4';
 const urlsToCache = [
   '/', '/index.html', '/style.css', '/main.js', '/manifest.json', '/icon.png',
   'https://cdn.tailwindcss.com',

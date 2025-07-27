@@ -1,20 +1,16 @@
-// --- IMPORTS ---
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
-// --- FIREBASE CONFIG ---
 const firebaseConfig = { apiKey: "AIzaSyA_9LWNHTUYjW9o5ZgBoEfQqdtYhIUIX0s", authDomain: "gate-tracker-final.firebaseapp.com", projectId: "gate-tracker-final", storageBucket: "gate-tracker-final.firebasestorage.app", messagingSenderId: "586102213734", appId: "1:586102213734:web:88fa9b3a3f0e421b9131a7" };
 
-// --- GLOBAL STATE ---
 let app, db, auth, storage, userId;
 let trackersUnsubscribe = null, itemsUnsubscribe = null;
 let currentTrackerId = null, currentTrackerData = null, currentParentId = 'root';
 let breadcrumbs = [];
 let allTrackers = [];
 
-// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
     const loaderPercentage = document.getElementById('loader-percentage');
     const loaderCircle = document.querySelector('.loader-circle');
@@ -34,10 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
             renderTrackers();
             setTimeout(() => { document.getElementById('loader-overlay').classList.add('hidden'); document.getElementById('app-container').style.opacity = '1'; }, 2200);
         });
-    } catch (error) { console.error("Firebase Init Error:", error); }
+    } catch (error) { console.error("Firebase Init Error:", error); document.getElementById('loader-overlay').innerHTML = `<p class="text-red-500 font-bold">Connection Failed</p>`; }
 });
 
-// --- EVENT LISTENERS ---
 function attachEventListeners() {
     document.getElementById('settings-btn').addEventListener('click', showSettingsPage);
     document.getElementById('back-to-dashboard-btn').addEventListener('click', showDashboardPage);
@@ -54,7 +49,6 @@ function attachEventListeners() {
     document.getElementById('display-name-input').addEventListener('change', (e) => updateDisplayName(e.target.value));
 }
 
-// --- PAGE NAVIGATION ---
 function showDashboardPage() { document.getElementById('dashboard-page').classList.remove('hidden'); document.getElementById('settings-page').classList.add('hidden'); document.getElementById('tracker-page').classList.add('hidden'); if (itemsUnsubscribe) itemsUnsubscribe(); }
 function showSettingsPage() { document.getElementById('dashboard-page').classList.add('hidden'); document.getElementById('settings-page').classList.remove('hidden'); document.getElementById('tracker-page').classList.add('hidden'); populateTrackerSelect(); }
 function showTrackerPage() { document.getElementById('dashboard-page').classList.add('hidden'); document.getElementById('settings-page').classList.add('hidden'); document.getElementById('tracker-page').classList.remove('hidden'); }
@@ -69,7 +63,6 @@ function handleBackNavigation() {
     }
 }
 
-// --- RENDER FUNCTIONS ---
 function renderTrackers() {
     if (trackersUnsubscribe) trackersUnsubscribe();
     const trackersGrid = document.getElementById('trackers-grid');
@@ -94,10 +87,11 @@ async function openTracker(trackerId, parentId = 'root') {
     currentTrackerData = trackerDoc.data();
     
     document.getElementById('tracker-title').textContent = currentTrackerData.name;
-    if (parentId === 'root') { breadcrumbs = [{ id: 'root', name: currentTrackerData.name }]; }
-    
-    showTrackerPage();
+    if (parentId === 'root') {
+        breadcrumbs = [{ id: 'root', name: currentTrackerData.name }];
+    }
     renderBreadcrumbs();
+    showTrackerPage();
     
     if (itemsUnsubscribe) itemsUnsubscribe();
     const itemsContainer = document.getElementById('items-container');
@@ -114,21 +108,18 @@ async function openTracker(trackerId, parentId = 'root') {
             if (item.type === 'FOLDER') {
                 el.classList.add('cursor-pointer', 'hover:bg-gray-700');
                 el.addEventListener('click', (e) => { if (e.target.closest('button')) return; breadcrumbs.push({ id: doc.id, name: item.name }); openTracker(trackerId, doc.id); });
-                contentHTML = `<div class="flex justify-between items-center"><div class="flex items-center space-x-3"><span class="text-2xl">📁</span><span class="font-semibold">${item.name}</span></div><div class="item-card-actions space-x-2"><button data-id="${doc.id}" class="edit-item-btn p-1 rounded-full text-xs hover:bg-gray-600">✏️</button><button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full text-xs hover:bg-gray-600">🗑️</button></div></div>`;
-            } else { // ITEM
-                const taskColumns = item.taskColumns || currentTrackerData.taskColumns;
+                contentHTML = `<div class="flex justify-between items-center"><div class="flex items-center space-x-3"><span class="text-2xl">📁</span><span class="font-semibold">${item.name}</span></div><div class="context-menu-btn space-x-2"><button data-id="${doc.id}" class="edit-item-btn p-1 rounded-full text-xs hover:bg-gray-600">✏️</button><button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full text-xs hover:bg-gray-600">🗑️</button></div></div>`;
+            } else {
+                const taskColumns = currentTrackerData.taskColumns || [];
                 const totalTasks = taskColumns.length;
                 const completedTasks = Object.values(item.tasks || {}).filter(Boolean).length;
                 const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
                 if(progress === 100) el.classList.add('is-complete');
 
                 let checklistHTML = '<div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">';
-                taskColumns.forEach(task => {
-                    const isChecked = item.tasks?.[task] || false;
-                    checklistHTML += `<label class="flex items-center space-x-2 text-sm"><input type="checkbox" data-id="${doc.id}" data-task="${task}" class="h-4 w-4 rounded text-purple-600 focus:ring-purple-500 bg-gray-700 border-gray-600" ${isChecked ? 'checked' : ''}><span>${task}</span></label>`;
-                });
+                taskColumns.forEach(task => { const isChecked = item.tasks?.[task] || false; checklistHTML += `<label class="flex items-center space-x-2 text-sm"><input type="checkbox" data-id="${doc.id}" data-task="${task}" class="h-4 w-4 rounded text-purple-600 focus:ring-purple-500 bg-gray-700 border-gray-600" ${isChecked ? 'checked' : ''}><span>${task}</span></label>`; });
                 checklistHTML += '</div>';
-                contentHTML = `<div class="flex justify-between items-center"><span class="font-semibold">${item.name}</span><div class="item-card-actions space-x-2"><button data-id="${doc.id}" class="edit-item-btn p-1 rounded-full text-xs hover:bg-gray-600">✏️</button><button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full text-xs hover:bg-gray-600">🗑️</button></div></div><div class="w-full bg-gray-700 rounded-full h-2.5 my-2"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${progress}%"></div></div><p class="text-xs text-right text-gray-400">${completedTasks} / ${totalTasks} tasks complete</p>${checklistHTML}`;
+                contentHTML = `<div class="flex justify-between items-center"><span class="font-semibold">${item.name}</span><div class="context-menu-btn space-x-2"><button data-id="${doc.id}" class="edit-item-btn p-1 rounded-full text-xs hover:bg-gray-600">✏️</button><button data-id="${doc.id}" class="delete-item-btn p-1 rounded-full text-xs hover:bg-gray-600">🗑️</button></div></div><div class="w-full bg-gray-700 rounded-full h-2.5 my-2"><div class="bg-blue-600 h-2.5 rounded-full" style="width: ${progress}%"></div></div><p class="text-xs text-right text-gray-400">${completedTasks} / ${totalTasks} tasks complete</p>${checklistHTML}`;
             }
             el.innerHTML = contentHTML;
             itemsContainer.appendChild(el);
@@ -150,10 +141,9 @@ function renderBreadcrumbs() {
         breadcrumbsContainer.appendChild(el);
         breadcrumbsContainer.append(' / ');
     });
-    breadcrumbsContainer.removeChild(breadcrumbsContainer.lastChild);
+    if (breadcrumbs.length > 0) { breadcrumbsContainer.removeChild(breadcrumbsContainer.lastChild); }
 }
 
-// --- DATA HANDLING ---
 async function handleCreateTracker() {
     const name = document.getElementById('new-tracker-name').value.trim(); if (!name) return;
     await addDoc(collection(db, "users", userId, "trackers"), { name, createdAt: serverTimestamp(), taskColumns: ['Videos', 'Notes', 'PYQs'] });
@@ -185,11 +175,11 @@ async function openDeleteModal(itemId, isTracker = false) {
     const modal = document.getElementById('delete-modal'); const text = document.getElementById('delete-text'); const confirmBtn = document.getElementById('confirm-delete-btn');
     if (isTracker) {
         const tracker = allTrackers.find(t => t.id === itemId);
-        text.textContent = `Delete tracker "${tracker.name}"? This cannot be undone.`;
+        text.textContent = `Delete tracker "${tracker.name}"? This is permanent.`;
         confirmBtn.onclick = () => deleteTracker(itemId);
     } else {
         const itemDoc = await getDoc(doc(db, "users", userId, "trackers", currentTrackerId, "items", itemId));
-        text.textContent = `Delete "${itemDoc.data().name}"? This cannot be undone.`;
+        text.textContent = `Delete "${itemDoc.data().name}"? This is permanent.`;
         confirmBtn.onclick = () => deleteItem(itemId);
     }
     modal.classList.remove('hidden');
@@ -213,6 +203,7 @@ async function populateTrackerSelect() {
 async function renderTaskColumnsEditor(trackerId) {
     const editorDiv = document.getElementById('task-columns-editor'); const deleteBtn = document.getElementById('delete-tracker-btn');
     if (!trackerId) { editorDiv.innerHTML = ''; deleteBtn.classList.add('hidden'); return; }
+    
     const trackerData = allTrackers.find(t => t.id === trackerId);
     let columnsHTML = '<h4 class="text-md font-semibold mt-4 mb-2">Task Columns</h4>';
     trackerData.taskColumns.forEach((col, index) => {
