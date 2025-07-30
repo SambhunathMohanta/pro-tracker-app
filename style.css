@@ -9,6 +9,6 @@ body { font-family: 'Inter', sans-serif; }
 .loader-circle {width: 150px;height: 150px;border-radius: 50%;display: flex;justify-content: center;align-items: center;font-size: 2em;font-weight: bold;color: white;background: conic-gradient(from 0deg, #16a34a 0%, #dc2626 0%, #1f2937 0%);transition: transform 0.5s ease, background 0.2s linear;}
 #loader-percentage {text-shadow: 0 0 5px rgba(0,0,0,0.5);}
 #app-container {transition: opacity 0.5s ease-in-out;}
-.item-card.is-complete { border-left-color: #22c55e; border-left-width: 4px; background-color: #162a22; }
 .context-menu-btn { opacity: 0; transition: opacity 0.2s; }
 .item-card:hover .context-menu-btn { opacity: 1; }
+.item-card.is-complete { border-left-color: #22c55e; border-left-width: 4px; background-color: #162a22; }

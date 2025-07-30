@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
-import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, doc, setDoc, getDoc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 
 const firebaseConfig = { apiKey: "AIzaSyA_9LWNHTUYjW9o5ZgBoEfQqdtYhIUIX0s", authDomain: "gate-tracker-final.firebaseapp.com", projectId: "gate-tracker-final", storageBucket: "gate-tracker-final.firebasestorage.app", messagingSenderId: "586102213734", appId: "1:586102213734:web:88fa9b3a3f0e421b9131a7" };
@@ -87,7 +87,9 @@ async function openTracker(trackerId, parentId = 'root') {
     currentTrackerData = trackerDoc.data();
     
     document.getElementById('tracker-title').textContent = currentTrackerData.name;
-    if (parentId === 'root') { breadcrumbs = [{ id: 'root', name: currentTrackerData.name }]; }
+    if (parentId === 'root') {
+        breadcrumbs = [{ id: 'root', name: currentTrackerData.name }];
+    }
     renderBreadcrumbs();
     showTrackerPage();
     
@@ -239,8 +241,5 @@ async function handlePhotoUpload(event) {
         await setDoc(doc(db, "users", userId), { profilePicUrl: downloadURL }, { merge: true });
         loadUserProfile();
         alert("Profile picture updated!");
-    } catch(error) {
-        console.error("Upload failed:", error);
-        alert("Upload failed. Please check storage rules and network.");
-    }
+    } catch(error) { console.error("Upload failed:", error); alert("Upload failed. Please check storage rules and network."); }
 }
