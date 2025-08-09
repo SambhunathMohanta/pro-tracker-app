@@ -1,14 +1,16 @@
+/* Minimal custom styles beyond Tailwind */
 body { font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
 .modal-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); z-index: 60; }
 .modal-content { background: #1f2937; padding: 20px; border-radius: 12px; width: 92%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); color: #e5e7eb; }
 .modal-btn-primary { background: #8B5CF6; color: #fff; padding: 8px 14px; border-radius: 8px; }
 .modal-btn-secondary { background: #374151; color: #fff; padding: 8px 14px; border-radius: 8px; }
 .modal-btn-danger { background: #ef4444; color: #fff; padding: 8px 14px; border-radius: 8px; }
-.loader-overlay {position: fixed;top: 0;left: 0;width: 100%;height: 100%;background-color: #111827;display: flex;justify-content: center;align-items: center;z-index: 9999;transition: opacity 0.5s ease-in-out;}
-.loader-overlay.hidden {opacity: 0;pointer-events: none;}
-.loader-circle {width: 150px;height: 150px;border-radius: 50%;display: flex;justify-content: center;align-items: center;font-size: 2em;font-weight: bold;color: white;background: conic-gradient(from 0deg, #16a34a 0%, #dc2626 0%, #1f2937 0%);transition: transform 0.5s ease, background 0.2s linear;}
-#loader-percentage {text-shadow: 0 0 5px rgba(0,0,0,0.5);}
-#app {transition: opacity 0.5s ease-in-out;}
-.item-card-actions { display: none; }
-.edit-mode .item-card-actions { display: flex; }
-.item-card.is-complete { border-left-color: #22c55e; border-left-width: 4px; background-color: #162a22; }
+
+.loader-hide { opacity: 0; pointer-events: none; }
+
+/* Item card hover reveal */
+.context-menu-btn { opacity: 0; transition: opacity .15s ease; }
+.item-card:hover .context-menu-btn { opacity: 1; }
+
+/* Progress complete indicator */
+.item-card.is-complete { border-left: 4px solid #22c55e; }
