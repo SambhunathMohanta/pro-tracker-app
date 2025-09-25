@@ -11,12 +11,12 @@ import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstat
 
 // --- FIREBASE CONFIGURATION ---
 const firebaseConfig = {
-    apiKey: "AIzaSyA_9LWNHTUYjW9o5ZgBoEfQqdtYhIUIX0s",
-    authDomain: "gate-tracker-final.firebaseapp.com",
-    projectId: "gate-tracker-final",
-    storageBucket: "gate-tracker-final.appspot.com",
-    messagingSenderId: "586102213734",
-    appId: "1:586102213734:web:88fa9b3a3f0e421b9131a7"
+  apiKey: "AIzaSyBBcIzVdT6Ce6aPAotw1kdCK4wFRiEo5QQ",
+  authDomain: "pro-tracker-final.firebaseapp.com",
+  projectId: "pro-tracker-final",
+  storageBucket: "pro-tracker-final.firebasestorage.app",
+  messagingSenderId: "236431092015",
+  appId: "1:236431092015:web:0704d2762aa34d60f559da"
 };
 
 // --- DATA CONFIGURATION (This will become dynamic later) ---
