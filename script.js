@@ -9,10 +9,6 @@ import {
 } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 import { 
     getFirestore, 
-    doc, 
-    setDoc, 
-    onSnapshot, 
-    getDoc,
     collection,
     addDoc,
     getDocs,
@@ -53,33 +49,64 @@ const trackerTitle = document.getElementById('tracker-title');
 const createSubjectButton = document.getElementById('create-subject-button');
 const subjectCardsContainer = document.getElementById('subject-cards-container');
 
-// AUTH UI ELEMENTS
-// ... (no changes) ...
+// AUTH UI ELEMENTS (RESTORED)
+const signInButton = document.getElementById('sign-in-button');
+const signOutButton = document.getElementById('sign-out-button');
+const userProfile = document.getElementById('user-profile');
+const userPhoto = document.getElementById('user-photo');
+const welcomeMessage = document.getElementById('welcome-message');
 
 // --- AUTHENTICATION LOGIC ---
 onAuthStateChanged(auth, user => {
-    // ... (no changes) ...
+    if (user) {
+        userId = user.uid;
+        mainContent.classList.remove('hidden');
+        userProfile.classList.remove('hidden');
+        signInButton.classList.add('hidden');
+        userPhoto.src = user.photoURL;
+        const welcomeText = user.displayName ? `Welcome, ${user.displayName.split(' ')[0]}!` : 'Welcome!';
+        welcomeMessage.textContent = welcomeText;
+        renderTrackersPage(); 
+    } else {
+        userId = null;
+        mainContent.classList.add('hidden');
+        userProfile.classList.add('hidden');
+        signInButton.classList.remove('hidden');
+        welcomeMessage.textContent = 'Track your progress, achieve your goals.';
+        if (trackerGrid) trackerGrid.innerHTML = '';
+    }
 });
 
-// ... (signIn and signOutUser functions are unchanged) ...
+const signIn = async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+        await signInWithPopup(auth, provider);
+    } catch (error) {
+        console.error("Authentication failed:", error);
+    }
+};
+
+const signOutUser = async () => {
+    try {
+        await signOut(auth);
+    } catch (error) {
+        console.error("Sign out failed:", error);
+    }
+};
 
 // --- EVENT LISTENERS ---
 signInButton.addEventListener('click', signIn);
 signOutButton.addEventListener('click', signOutUser);
 createTrackerButton.addEventListener('click', createNewTracker);
-createSubjectButton.addEventListener('clcick', createNewSubject); // New listener for subjects
+createSubjectButton.addEventListener('click', createNewSubject); // Fixed typo 'clcick' -> 'click'
 backButton.addEventListener('click', () => {
-    // This button now always takes you back to the home/trackers page
     homePage.classList.remove('hidden');
     subjectsPage.classList.add('hidden');
-    currentTrackerId = null; // Reset the current tracker
+    currentTrackerId = null; 
 });
 
 // --- DYNAMIC TRACKER/SUBJECT FUNCTIONS ---
 
-/**
- * Fetches and displays all trackers for the current user.
- */
 async function renderTrackersPage() {
     trackerGrid.innerHTML = '';
     try {
@@ -95,45 +122,48 @@ async function renderTrackersPage() {
                 const card = document.createElement('div');
                 card.className = 'bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:bg-purple-50 dark:hover:bg-gray-700';
                 card.innerHTML = `<h3 class="text-lg font-bold text-center text-purple-700 dark:text-purple-300">${tracker.name}</h3>`;
-                
-                // *** NEW: Add click event listener to open the tracker ***
                 card.addEventListener('click', () => openTracker(doc.id, tracker.name));
                 trackerGrid.appendChild(card);
             });
         }
-    } catch (error) { /* ... (no changes) ... */ }
+    } catch (error) {
+        console.error("Error fetching trackers:", error);
+        trackerGrid.innerHTML = `<p class="col-span-full text-center text-red-500">Could not load trackers.</p>`;
+    }
 }
 
-/**
- * Prompts for and creates a new tracker in Firestore.
- */
-async function createNewTracker() { /* ... (no changes) ... */ }
+async function createNewTracker() {
+    const trackerName = prompt("Enter the name for your new tracker (e.g., 'UPSC 2026', 'Semester Project'):");
+    if (trackerName && trackerName.trim() !== '') {
+        try {
+            const trackersRef = collection(db, "users", userId, "trackers");
+            await addDoc(trackersRef, {
+                name: trackerName.trim(),
+                createdAt: serverTimestamp()
+            });
+            renderTrackersPage();
+        } catch (error) {
+            console.error("Error creating tracker:", error);
+            alert("Could not create tracker. Please try again.");
+        }
+    }
+}
 
-/**
- * Hides the trackers page and shows the subjects page for a specific tracker.
- * @param {string} trackerId The ID of the tracker document in Firestore.
- * @param {string} trackerName The name of the tracker.
- */
 function openTracker(trackerId, trackerName) {
-    currentTrackerId = trackerId; // Set the current tracker context
+    currentTrackerId = trackerId;
     homePage.classList.add('hidden');
     subjectsPage.classList.remove('hidden');
     trackerTitle.textContent = trackerName;
-    renderSubjects(); // Load the subjects for this tracker
+    renderSubjects();
 }
 
-/**
- * Fetches and displays all subjects for the currently open tracker.
- */
 async function renderSubjects() {
-    if (!currentTrackerId) return; // Safety check
-
+    if (!currentTrackerId) return;
     subjectCardsContainer.innerHTML = '';
     try {
         const subjectsRef = collection(db, "users", userId, "trackers", currentTrackerId, "subjects");
-        const q = query(subjectsRef, orderBy("createdAt", "asc")); // Show oldest first
+        const q = query(subjectsRef, orderBy("createdAt", "asc"));
         const querySnapshot = await getDocs(q);
-
         if (querySnapshot.empty) {
             subjectCardsContainer.innerHTML = `<p class="col-span-full text-center text-gray-500">No subjects yet. Add one to begin!</p>`;
         } else {
@@ -142,7 +172,6 @@ async function renderSubjects() {
                 const card = document.createElement('div');
                 card.className = 'bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:bg-green-50 dark:hover:bg-gray-700';
                 card.innerHTML = `<h3 class="text-lg font-bold text-center text-green-700 dark:text-green-300">${subject.name}</h3>`;
-                // In the final step, we'll make these cards open the task view.
                 subjectCardsContainer.appendChild(card);
             });
         }
@@ -152,14 +181,9 @@ async function renderSubjects() {
     }
 }
 
-/**
- * Prompts for and creates a new subject within the current tracker.
- */
 async function createNewSubject() {
-    if (!currentTrackerId) return; // Safety check
-
+    if (!currentTrackerId) return;
     const subjectName = prompt("Enter the name for your new subject (e.g., 'Mathematics', 'Chapter 1'):");
-
     if (subjectName && subjectName.trim() !== '') {
         try {
             const subjectsRef = collection(db, "users", userId, "trackers", currentTrackerId, "subjects");
@@ -167,7 +191,7 @@ async function createNewSubject() {
                 name: subjectName.trim(),
                 createdAt: serverTimestamp()
             });
-            renderSubjects(); // Refresh the list to show the new subject
+            renderSubjects();
         } catch (error) {
             console.error("Error creating subject:", error);
             alert("Could not create subject. Please try again.");
