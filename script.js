@@ -63,7 +63,9 @@ onAuthStateChanged(auth, user => {
         
         // Personalize the header
         userPhoto.src = user.photoURL;
-        welcomeMessage.textContent = `Welcome, ${user.displayName.split(' ')[0]}!`;
+        // This is the new, safe code
+        const welcomeText = user.displayName ? `Welcome, ${user.displayName.split(' ')[0]}!` : 'Welcome!';
+        welcomeMessage.textContent = welcomeText;
 
         // Load user's data
         renderHomePage();
