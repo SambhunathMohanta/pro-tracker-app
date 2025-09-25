@@ -5,12 +5,12 @@ import { getFirestore, collection, doc, addDoc, getDocs, getDoc, setDoc, serverT
 
 // --- FIREBASE CONFIGURATION ---
 const firebaseConfig = {
-  apiKey: "AIzaSyBBcIzVdT6Ce6aPAotw1kdCK4wFRiEo5QQ",
-  authDomain: "pro-tracker-final.firebaseapp.com",
-  projectId: "pro-tracker-final",
-  storageBucket: "pro-tracker-final.firebasestorage.app",
-  messagingSenderId: "236431092015",
-  appId: "1:236431092015:web:0704d2762aa34d60f559da"
+    apiKey: "AIzaSyBBcIzVdT6Ce6aPAotw1kdCK4wFRiEo5QQ",
+    authDomain: "pro-tracker-final.firebaseapp.com",
+    projectId: "pro-tracker-final",
+    storageBucket: "pro-tracker-final.firebasestorage.app",
+    messagingSenderId: "236431092015",
+    appId: "1:236431092015:web:0704d2762aa34d60f559da"
 };
 
 // --- FIREBASE INITIALIZATION ---
@@ -45,16 +45,46 @@ document.addEventListener('DOMContentLoaded', () => {
     const newTaskInput = document.getElementById('new-task-input');
     const taskListContainer = document.getElementById('task-list-container');
     const signInButton = document.getElementById('sign-in-button');
-    // ... (other auth elements) ...
+    const signOutButton = document.getElementById('sign-out-button');
+    const userProfile = document.getElementById('user-profile');
+    const userPhoto = document.getElementById('user-photo');
+    const welcomeMessage = document.getElementById('welcome-message');
 
-    // --- AUTH LOGIC & LISTENERS (no changes) ---
-    onAuthStateChanged(auth, user => { /* ... */ });
+    // --- AUTHENTICATION LOGIC ---
+    onAuthStateChanged(auth, user => {
+        if (user) {
+            userId = user.uid;
+            mainContent.classList.remove('hidden');
+            userProfile.classList.remove('hidden');
+            signInButton.classList.add('hidden');
+            userPhoto.src = user.photoURL;
+            const welcomeText = user.displayName ? `Welcome, ${user.displayName.split(' ')[0]}!` : 'Welcome!';
+            welcomeMessage.textContent = welcomeText;
+            renderTrackersPage(); 
+        } else {
+            userId = null;
+            mainContent.classList.add('hidden');
+            userProfile.classList.add('hidden');
+            signInButton.classList.remove('hidden');
+            welcomeMessage.textContent = 'Track your progress, achieve your goals.';
+            if (trackerGrid) trackerGrid.innerHTML = '';
+        }
+    });
+
+    const signIn = async () => {
+        const provider = new GoogleAuthProvider();
+        try { await signInWithPopup(auth, provider); } catch (error) { console.error("Authentication failed:", error); }
+    };
+    const signOutUser = async () => {
+        try { await signOut(auth); } catch (error) { console.error("Sign out failed:", error); }
+    };
+
+    // --- EVENT LISTENERS (CORRECTED) ---
     signInButton.addEventListener('click', signIn);
-    // ... (other listeners) ...
-
-    // --- NAVIGATION LISTENERS ---
+    signOutButton.addEventListener('click', signOutUser);
     createTrackerButton.addEventListener('click', createNewTracker);
     createSubjectButton.addEventListener('click', createNewSubject);
+    addTaskForm.addEventListener('submit', handleAddTask);
     backToTrackersButton.addEventListener('click', () => {
         homePage.classList.remove('hidden');
         subjectsPage.classList.add('hidden');
@@ -64,56 +94,64 @@ document.addEventListener('DOMContentLoaded', () => {
         subjectsPage.classList.remove('hidden');
         tasksPage.classList.add('hidden');
         currentSubjectId = null;
+        renderSubjects(); // Re-render subjects when going back
     });
-    addTaskForm.addEventListener('submit', handleAddTask);
 
-    // --- RENDER TRACKERS (no changes) ---
-    async function renderTrackersPage() { /* ... */ }
+    // --- RENDER TRACKERS PAGE ---
+    async function renderTrackersPage() {
+        // ... (This function is correct, no changes needed)
+    }
 
-    // --- CREATE TRACKER (no changes) ---
-    async function createNewTracker() { /* ... */ }
+    // --- CREATE NEW TRACKER ---
+    async function createNewTracker() {
+        // ... (This function is correct, no changes needed)
+    }
 
-    // --- OPEN TRACKER (no changes) ---
-    function openTracker(trackerId, trackerName) { /* ... */ }
+    // --- OPEN TRACKER ---
+    function openTracker(trackerId, trackerName) {
+        currentTrackerId = trackerId;
+        homePage.classList.add('hidden');
+        subjectsPage.classList.remove('hidden');
+        trackerTitle.textContent = trackerName;
+        renderSubjects();
+    }
 
-    // --- RENDER SUBJECTS (UPDATED to be clickable) ---
+    // --- RENDER SUBJECTS PAGE ---
     async function renderSubjects() {
         if (!currentTrackerId) return;
         subjectCardsContainer.innerHTML = '';
-        const subjectsRef = collection(db, "users", userId, "trackers", currentTrackerId, "subjects");
-        const q = query(subjectsRef, orderBy("createdAt", "asc"));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) { /* ... */ } 
-        else {
-            querySnapshot.forEach((doc) => {
-                const subject = doc.data();
-                const card = document.createElement('div');
-                card.className = 'bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg cursor-pointer ...';
-                card.innerHTML = `<h3 class="text-lg font-bold ...">${subject.name}</h3>`;
-                // *** NEW: Add click listener to open the subject's tasks ***
-                card.addEventListener('click', () => openSubject(doc.id, subject.name));
-                subjectCardsContainer.appendChild(card);
-            });
-        }
+        try {
+            const subjectsRef = collection(db, "users", userId, "trackers", currentTrackerId, "subjects");
+            const q = query(subjectsRef, orderBy("createdAt", "asc"));
+            const querySnapshot = await getDocs(q);
+            if (querySnapshot.empty) {
+                subjectCardsContainer.innerHTML = `<p class="col-span-full text-center text-gray-500">No subjects yet. Add one to begin!</p>`;
+            } else {
+                querySnapshot.forEach((doc) => {
+                    const subject = doc.data();
+                    const card = document.createElement('div');
+                    card.className = 'bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg cursor-pointer transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:bg-green-50 dark:hover:bg-gray-700';
+                    card.innerHTML = `<h3 class="text-lg font-bold text-center text-green-700 dark:text-green-300">${subject.name}</h3>`;
+                    card.addEventListener('click', () => openSubject(doc.id, subject.name));
+                    subjectCardsContainer.appendChild(card);
+                });
+            }
+        } catch (error) { console.error("Error fetching subjects:", error); }
+    }
+    
+    // --- CREATE NEW SUBJECT ---
+    async function createNewSubject() {
+        // ... (This function is correct, no changes needed)
     }
 
-    // --- CREATE SUBJECT (no changes) ---
-    async function createNewSubject() { /* ... */ }
-
-    // --- NEW: TASKS PAGE FUNCTIONS ---
-
-    /**
-     * Hides the subjects page and shows the tasks page for a specific subject.
-     */
+    // --- OPEN SUBJECT / TASKS PAGE ---
     function openSubject(subjectId, subjectName) {
         currentSubjectId = subjectId;
         subjectsPage.classList.add('hidden');
         tasksPage.classList.remove('hidden');
         subjectTitleTasks.textContent = subjectName;
-        renderTasks(); // Load the tasks for this subject
+        renderTasks();
     }
-
     /**
      * Renders the checklist of tasks for the currently open subject.
      */
