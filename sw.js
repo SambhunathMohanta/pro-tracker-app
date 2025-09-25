@@ -1,45 +1,38 @@
-const CACHE_NAME = 'pro-tracker-v1';
-const ASSETS = [
+const CACHE_NAME = 'gate-study-cache-v1';
+const urlsToCache = [
   '/',
   '/index.html',
   '/style.css',
-  '/app.js',
+  '/script.js',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/icon.png',
+  'https://cdn.tailwindcss.com',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js'
 ];
 
-self.addEventListener('install', (e) => {
-  self.skipWaiting();
-  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(ASSETS)));
-});
-
-self.addEventListener('activate', (e) => {
-  clients.claim();
-  e.waitUntil(
-    caches.keys().then(keys => Promise.all(
-      keys.map(k => k !== CACHE_NAME ? caches.delete(k) : null)
-    ))
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('Opened cache');
+        return cache.addAll(urlsToCache);
+      })
   );
 });
 
-self.addEventListener('fetch', (e) => {
-  // Try network, fallback to cache for dynamic firebase requests if offline
-  if (e.request.url.startsWith(self.location.origin)) {
-    e.respondWith(
-      caches.match(e.request).then(cached => {
-        if (cached) return cached;
-        return fetch(e.request).then(resp => {
-          // put new GET responses into cache (optional)
-          if (e.request.method === 'GET') {
-            caches.open(CACHE_NAME).then(cache => cache.put(e.request, resp.clone()));
-          }
-          return resp;
-        }).catch(()=> caches.match('/index.html'));
-      })
-    );
-  } else {
-    // for external requests just try network then cache
-    e.respondWith(fetch(e.request).catch(()=> caches.match('/index.html')));
-  }
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(response => {
+        // Cache hit - return response
+        if (response) {
+          return response;
+        }
+        return fetch(event.request);
+      }
+    )
+  );
 });

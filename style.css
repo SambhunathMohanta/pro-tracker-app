@@ -1,16 +1,20 @@
-/* Minimal custom styles beyond Tailwind */
-body { font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
-.modal-overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); z-index: 60; }
-.modal-content { background: #1f2937; padding: 20px; border-radius: 12px; width: 92%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.4); color: #e5e7eb; }
-.modal-btn-primary { background: #8B5CF6; color: #fff; padding: 8px 14px; border-radius: 8px; }
-.modal-btn-secondary { background: #374151; color: #fff; padding: 8px 14px; border-radius: 8px; }
-.modal-btn-danger { background: #ef4444; color: #fff; padding: 8px 14px; border-radius: 8px; }
+body {
+    font-family: 'Inter', sans-serif;
+}
 
-.loader-hide { opacity: 0; pointer-events: none; }
+/* Style for a completed topic card */
+.topic-card.is-complete {
+    border-color: #22c55e; /* green-500 */
+    background-color: #f0fdf4; /* green-50 */
+}
 
-/* Item card hover reveal */
-.context-menu-btn { opacity: 0; transition: opacity .15s ease; }
-.item-card:hover .context-menu-btn { opacity: 1; }
+.dark .topic-card.is-complete {
+    background-color: #162a22; /* A dark green shade */
+}
 
-/* Progress complete indicator */
-.item-card.is-complete { border-left: 4px solid #22c55e; }
+/* Checkmark icon for completed cards */
+.completion-check {
+    color: #22c55e;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
