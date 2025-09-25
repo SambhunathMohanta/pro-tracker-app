@@ -14,54 +14,47 @@
 
     <div id="app-container" class="max-w-4xl mx-auto p-4">
         <header class="flex items-center justify-between mb-6">
-            <div class="flex items-center space-x-4">
-                <img id="header-logo" src="icon.png" alt="App Logo" class="w-12 h-12 md:w-16 md:h-16 rounded-full border-2 border-purple-500 shadow-md">
-                <div>
-                    <h1 class="text-xl md:text-3xl font-bold text-purple-600 dark:text-purple-400">Study Tracker</h1>
-                    <p id="welcome-message" class="text-md md:text-lg text-gray-600 dark:text-gray-300">Track your progress, achieve your goals.</p>
-                </div>
-            </div>
-            
-            <div id="auth-container">
-                <div id="user-profile" class="hidden flex items-center space-x-3">
-                    <img id="user-photo" class="w-10 h-10 rounded-full" alt="User photo">
-                    <button id="sign-out-button" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
-                        Sign Out
-                    </button>
-                </div>
-                
-                <button id="sign-in-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
-                    Sign in with Google
-                </button>
-            </div>
-        </header>
+            </header>
 
         <main id="main-content" class="hidden">
             <div id="home-page">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-semibold text-center">My Trackers</h2>
-                    <button id="create-tracker-button" class="create-button">
-                        &#43; New Tracker
-                    </button>
-                </div>
                 <div id="tracker-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"></div>
             </div>
 
             <div id="subjects-page" class="hidden">
                 <div class="flex items-center mb-4">
-                    <button id="back-button" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
-                        &larr; Back
+                    <button id="back-to-trackers" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                        &larr; All Trackers
                     </button>
                 </div>
-                
-                <div class="flex justify-between items-center mb-6">
-                    <h2 id="tracker-title" class="text-2xl md:text-3xl font-bold text-center"></h2>
-                    <button id="create-subject-button" class="create-button">
-                        &#43; New Subject
+                <div id="subject-cards-container" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"></div>
+            </div>
+
+            <div id="tasks-page" class="hidden">
+                <div class="flex items-center mb-4">
+                     <button id="back-to-subjects" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                        &larr; All Subjects
                     </button>
+                </div>
+                <h2 id="subject-title-tasks" class="text-2xl md:text-3xl font-bold text-center mb-4"></h2>
+
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-base font-medium text-blue-700 dark:text-blue-300">Task Progress</span>
+                        <span id="task-progress-text" class="text-sm font-medium text-blue-700 dark:text-blue-300">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700">
+                        <div id="task-progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
                 </div>
 
-                <div id="subject-cards-container" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"></div>
+                <form id="add-task-form" class="flex gap-2 mb-6">
+                    <input type="text" id="new-task-input" placeholder="Enter a new task" class="flex-grow bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" required>
+                    <button type="submit" class="create-button">Add Task</button>
+                </form>
+
+                <div id="task-list-container" class="space-y-3">
+                    </div>
             </div>
         </main>
     </div>
